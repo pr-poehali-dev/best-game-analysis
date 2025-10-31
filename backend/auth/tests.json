@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "Register new player",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "register",
+        "username": "testplayer",
+        "password": "test123",
+        "email": "test@example.com",
+        "avatar": "🧙"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "token": "string",
+        "player": {
+          "username": "testplayer"
+        }
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
