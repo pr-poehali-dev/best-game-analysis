@@ -27,6 +27,9 @@ interface Player {
   magicPower: number;
   rangeBonus: number;
   avatar: string;
+  pvpWins: number;
+  pvpLosses: number;
+  weeklyScore: number;
 }
 
 interface ShopItem {
@@ -158,6 +161,11 @@ export default function Index() {
   const [chatInput, setChatInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showDonatInfo, setShowDonatInfo] = useState(false);
+  const [pvpOpponent, setPvpOpponent] = useState<Player | null>(null);
+  const [inPvp, setInPvp] = useState(false);
+  const [pvpLog, setPvpLog] = useState<string[]>([]);
+  const [pvpPlayerHealth, setPvpPlayerHealth] = useState(0);
+  const [pvpOpponentHealth, setPvpOpponentHealth] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -166,16 +174,27 @@ export default function Index() {
     const savedChat = localStorage.getItem('lyriumChat');
     
     if (savedPlayer) {
-      setPlayer(JSON.parse(savedPlayer));
+      const parsed = JSON.parse(savedPlayer);
+      if (!parsed.pvpWins) parsed.pvpWins = 0;
+      if (!parsed.pvpLosses) parsed.pvpLosses = 0;
+      if (!parsed.weeklyScore) parsed.weeklyScore = 0;
+      setPlayer(parsed);
       setShowAuth(false);
     }
     
     if (savedInventory) setInventory(JSON.parse(savedInventory));
     if (savedChat) setChatMessages(JSON.parse(savedChat));
+
+    checkWeeklyReset();
   }, []);
 
   useEffect(() => {
-    if (player) localStorage.setItem('lyriumPlayer', JSON.stringify(player));
+    if (player) {
+      localStorage.setItem('lyriumPlayer', JSON.stringify(player));
+      const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+      const updated = allPlayers.map((p: Player) => p.username === player.username ? player : p);
+      localStorage.setItem('lyriumAllPlayers', JSON.stringify(updated));
+    }
   }, [player]);
 
   useEffect(() => {
@@ -185,6 +204,34 @@ export default function Index() {
   useEffect(() => {
     localStorage.setItem('lyriumChat', JSON.stringify(chatMessages));
   }, [chatMessages]);
+
+  const checkWeeklyReset = () => {
+    const lastReset = localStorage.getItem('lyriumWeeklyReset');
+    const now = Date.now();
+    const weekInMs = 7 * 24 * 60 * 60 * 1000;
+
+    if (!lastReset || now - parseInt(lastReset) > weekInMs) {
+      const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+      const sorted = allPlayers
+        .filter((p: Player) => p.weeklyScore > 0)
+        .sort((a: Player, b: Player) => b.weeklyScore - a.weeklyScore);
+
+      if (sorted.length > 0) {
+        if (sorted[0]) sorted[0].coins += 1000;
+        if (sorted[1]) sorted[1].coins += 500;
+        if (sorted[2]) sorted[2].coins += 250;
+
+        const resetPlayers = allPlayers.map((p: Player) => {
+          const winner = sorted.find((s: Player) => s.username === p.username);
+          return { ...p, weeklyScore: 0, coins: winner ? winner.coins : p.coins };
+        });
+
+        localStorage.setItem('lyriumAllPlayers', JSON.stringify(resetPlayers));
+      }
+
+      localStorage.setItem('lyriumWeeklyReset', now.toString());
+    }
+  };
 
   const handleAuth = () => {
     if (!username || !password) {
@@ -200,6 +247,10 @@ export default function Index() {
         toast({ title: "Ошибка", description: "Неверный логин или пароль", variant: "destructive" });
         return;
       }
+
+      if (!existingPlayer.pvpWins) existingPlayer.pvpWins = 0;
+      if (!existingPlayer.pvpLosses) existingPlayer.pvpLosses = 0;
+      if (!existingPlayer.weeklyScore) existingPlayer.weeklyScore = 0;
 
       setPlayer(existingPlayer);
       setShowAuth(false);
@@ -239,8 +290,8 @@ export default function Index() {
       username,
       password,
       race: raceId as any,
-      coins: 5000,
-      gems: 100,
+      coins: 100,
+      gems: 10,
       premiumCurrency: 0,
       level: 1,
       experience: 0,
@@ -250,7 +301,10 @@ export default function Index() {
       defense: raceConfig.defense,
       magicPower: raceConfig.magic,
       rangeBonus: raceConfig.range,
-      avatar: raceConfig.avatar
+      avatar: raceConfig.avatar,
+      pvpWins: 0,
+      pvpLosses: 0,
+      weeklyScore: 0
     };
 
     const savedPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
@@ -275,12 +329,12 @@ export default function Index() {
       icon: isBoss ? '👑' : ['🟢', '👹', '💀', '👺', '🧌', '🐺', '🧟', '🧛'][Math.floor(Math.random() * 8)],
       level: mobLevel,
       isBoss,
-      health: isBoss ? mobLevel * 50 : mobLevel * 10,
-      maxHealth: isBoss ? mobLevel * 50 : mobLevel * 10,
-      attack: isBoss ? mobLevel * 5 : mobLevel * 2,
-      defense: isBoss ? mobLevel * 3 : mobLevel,
-      coinsReward: isBoss ? mobLevel * 20 : mobLevel * 5,
-      gemsReward: isBoss ? mobLevel * 2 : 0,
+      health: isBoss ? mobLevel * 200 : mobLevel * 10,
+      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 10,
+      attack: isBoss ? 0 : mobLevel * 2,
+      defense: isBoss ? mobLevel * 5 : mobLevel,
+      coinsReward: isBoss ? mobLevel * 30 : Math.max(2, Math.floor(mobLevel * 1.5)),
+      gemsReward: isBoss ? mobLevel * 3 : 0,
       artifactName: isBoss ? `Артефакт Ур.${mobLevel}` : null
     };
 
@@ -289,34 +343,55 @@ export default function Index() {
     setBattleLog([`⚔️ Началась битва с ${mobData.name}!`]);
   };
 
+  const getEquippedBonuses = () => {
+    const equipped = inventory.filter(i => i.equipped);
+    return {
+      attack: equipped.reduce((sum, i) => sum + i.attackBonus, 0),
+      defense: equipped.reduce((sum, i) => sum + i.defenseBonus, 0),
+      health: equipped.reduce((sum, i) => sum + i.healthBonus, 0)
+    };
+  };
+
+  const getTotalStats = () => {
+    if (!player) return { attack: 0, defense: 0, maxHealth: 0 };
+    const bonuses = getEquippedBonuses();
+    return {
+      attack: player.attack + (player.magicPower || 0) + (player.rangeBonus || 0) + bonuses.attack,
+      defense: player.defense + bonuses.defense,
+      maxHealth: player.maxHealth + bonuses.health
+    };
+  };
+
   const attackMob = () => {
     if (!currentMob || !player) return;
 
-    const isRanged = player.race === 'mage' || player.race === 'archer';
-    const playerDamage = Math.max(1, player.attack + (isRanged ? player.magicPower + player.rangeBonus : 0) - currentMob.defense);
-    const mobDamage = isRanged ? Math.max(0, Math.floor(currentMob.attack * 0.7) - player.defense) : Math.max(1, currentMob.attack - player.defense);
+    const stats = getTotalStats();
+    const playerDamage = Math.max(1, stats.attack - currentMob.defense);
+    const mobDamage = currentMob.isBoss ? 0 : Math.max(0, currentMob.attack - stats.defense);
 
     const newMobHealth = currentMob.health - playerDamage;
     const newPlayerHealth = player.health - mobDamage;
 
     setBattleLog(prev => [...prev, 
       `💥 Ты нанес ${playerDamage} урона!`,
-      mobDamage > 0 ? `🩸 Получено ${mobDamage} урона!` : '🛡️ Атака заблокирована!'
+      currentMob.isBoss ? '🛡️ Босс не атакует!' : (mobDamage > 0 ? `🩸 Получено ${mobDamage} урона!` : '🛡️ Атака заблокирована!')
     ]);
 
     if (newMobHealth <= 0) {
-      const exp = currentMob.level * 20;
+      const exp = currentMob.level * (currentMob.isBoss ? 100 : 20);
       const newExp = player.experience + exp;
       const levelUp = newExp >= player.level * 100;
 
-      setPlayer({
+      const updatedPlayer = {
         ...player,
         coins: player.coins + currentMob.coinsReward,
         gems: player.gems + currentMob.gemsReward,
         experience: levelUp ? newExp - player.level * 100 : newExp,
         level: levelUp ? player.level + 1 : player.level,
-        health: Math.min(player.maxHealth, player.health + (levelUp ? 50 : 0))
-      });
+        weeklyScore: player.weeklyScore + exp
+      };
+
+      setPlayer(updatedPlayer);
 
       if (currentMob.artifactName) {
         const artifact: InventoryItem = {
@@ -343,16 +418,110 @@ export default function Index() {
       setCurrentMob(null);
       
       if (levelUp) {
-        toast({ title: "🎊 НОВЫЙ УРОВЕНЬ!", description: `Поздравляем! Теперь ты ${player.level + 1} уровня!` });
+        toast({ title: "🎊 НОВЫЙ УРОВЕНЬ!", description: `Поздравляем! Теперь ты ${updatedPlayer.level} уровня!` });
       }
     } else if (newPlayerHealth <= 0) {
-      setPlayer({ ...player, health: player.maxHealth, coins: Math.max(0, player.coins - 50) });
+      setPlayer({ ...player, health: stats.maxHealth, coins: Math.max(0, player.coins - 50) });
       setBattleLog(prev => [...prev, '💀 ПОРАЖЕНИЕ! -50 монет']);
       setInBattle(false);
       setCurrentMob(null);
     } else {
       setCurrentMob({ ...currentMob, health: newMobHealth });
       setPlayer({ ...player, health: newPlayerHealth });
+    }
+  };
+
+  const findPvpOpponent = () => {
+    if (!player) return;
+    
+    const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]')
+      .filter((p: Player) => p.username !== player.username);
+    
+    if (allPlayers.length === 0) {
+      toast({ title: "Нет игроков", description: "Пока нет других игроков для PvP", variant: "destructive" });
+      return;
+    }
+
+    const opponent = allPlayers[Math.floor(Math.random() * allPlayers.length)];
+    setPvpOpponent(opponent);
+    
+    const playerStats = getTotalStats();
+    setPvpPlayerHealth(playerStats.maxHealth);
+    
+    const opponentInventory = JSON.parse(localStorage.getItem('lyriumInventory') || '[]');
+    const opponentEquipped = opponentInventory.filter((i: InventoryItem) => i.equipped);
+    const opponentBonuses = {
+      attack: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.attackBonus, 0),
+      defense: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.defenseBonus, 0),
+      health: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.healthBonus, 0)
+    };
+    
+    setPvpOpponentHealth(opponent.maxHealth + opponentBonuses.health);
+    setInPvp(true);
+    setPvpLog([`⚔️ PvP битва началась! ${player.username} VS ${opponent.username}`]);
+  };
+
+  const pvpAttack = () => {
+    if (!pvpOpponent || !player) return;
+
+    const playerStats = getTotalStats();
+    const opponentInventory = JSON.parse(localStorage.getItem('lyriumInventory') || '[]');
+    const opponentEquipped = opponentInventory.filter((i: InventoryItem) => i.equipped);
+    const opponentBonuses = {
+      attack: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.attackBonus, 0),
+      defense: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.defenseBonus, 0),
+      health: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.healthBonus, 0)
+    };
+
+    const opponentTotalAttack = pvpOpponent.attack + (pvpOpponent.magicPower || 0) + (pvpOpponent.rangeBonus || 0) + opponentBonuses.attack;
+    const opponentTotalDefense = pvpOpponent.defense + opponentBonuses.defense;
+
+    const playerDamage = Math.max(1, playerStats.attack - opponentTotalDefense);
+    const opponentDamage = Math.max(1, opponentTotalAttack - playerStats.defense);
+
+    const newOpponentHealth = pvpOpponentHealth - playerDamage;
+    const newPlayerHealth = pvpPlayerHealth - opponentDamage;
+
+    setPvpLog(prev => [...prev, 
+      `💥 ${player.username} нанес ${playerDamage} урона!`,
+      `🩸 ${pvpOpponent.username} нанес ${opponentDamage} урона!`
+    ]);
+
+    if (newOpponentHealth <= 0) {
+      const coinsReward = Math.max(10, pvpOpponent.level * 5);
+      const expReward = pvpOpponent.level * 30;
+      const newExp = player.experience + expReward;
+      const levelUp = newExp >= player.level * 100;
+
+      setPlayer({
+        ...player,
+        coins: player.coins + coinsReward,
+        experience: levelUp ? newExp - player.level * 100 : newExp,
+        level: levelUp ? player.level + 1 : player.level,
+        pvpWins: player.pvpWins + 1,
+        weeklyScore: player.weeklyScore + expReward
+      });
+
+      setPvpLog(prev => [...prev, `🏆 ПОБЕДА! +${expReward} опыта, +${coinsReward} монет!`]);
+      setInPvp(false);
+      setPvpOpponent(null);
+      
+      if (levelUp) {
+        toast({ title: "🎊 НОВЫЙ УРОВЕНЬ!", description: `Поздравляем! Теперь ты ${player.level + 1} уровня!` });
+      }
+    } else if (newPlayerHealth <= 0) {
+      setPlayer({ 
+        ...player, 
+        health: playerStats.maxHealth, 
+        coins: Math.max(0, player.coins - 20),
+        pvpLosses: player.pvpLosses + 1
+      });
+      setPvpLog(prev => [...prev, '💀 ПОРАЖЕНИЕ! -20 монет']);
+      setInPvp(false);
+      setPvpOpponent(null);
+    } else {
+      setPvpOpponentHealth(newOpponentHealth);
+      setPvpPlayerHealth(newPlayerHealth);
     }
   };
 
@@ -416,6 +585,28 @@ export default function Index() {
     toast({ title: "Куплено!", description: item.name });
   };
 
+  const toggleEquip = (itemId: number) => {
+    setInventory(inventory.map(i => 
+      i.id === itemId ? { ...i, equipped: !i.equipped } : i
+    ));
+  };
+
+  const usePotion = (item: InventoryItem) => {
+    if (!player || item.category !== 'potion') return;
+    
+    const stats = getTotalStats();
+    const newHealth = Math.min(stats.maxHealth, player.health + item.healthBonus);
+    setPlayer({ ...player, health: newHealth });
+    
+    if (item.quantity > 1) {
+      setInventory(inventory.map(i => i.id === item.id ? { ...i, quantity: i.quantity - 1 } : i));
+    } else {
+      setInventory(inventory.filter(i => i.id !== item.id));
+    }
+    
+    toast({ title: "Использовано!", description: `+${item.healthBonus} HP` });
+  };
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'common': return 'border-gray-500';
@@ -435,6 +626,16 @@ export default function Index() {
       case 'ghost': return 'text-purple-500';
       default: return 'text-foreground';
     }
+  };
+
+  const getLeaderboard = () => {
+    const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+    return allPlayers
+      .sort((a: Player, b: Player) => {
+        if (b.level !== a.level) return b.level - a.level;
+        return b.experience - a.experience;
+      })
+      .slice(0, 10);
   };
 
   if (showAuth) {
@@ -532,6 +733,8 @@ export default function Index() {
 
   const categories = ['all', 'weapon', 'armor', 'potion', 'magic', 'pet', 'premium'];
   const filteredItems = selectedCategory === 'all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i => i.category === selectedCategory);
+  const stats = getTotalStats();
+  const leaderboard = getLeaderboard();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 font-pixel text-purple-100">
@@ -548,14 +751,13 @@ export default function Index() {
             <Badge className="bg-yellow-700"><Icon name="Coins" size={12} /> {player.coins}</Badge>
             <Badge className="bg-blue-700"><Icon name="Gem" size={12} /> {player.gems}</Badge>
             {player.premiumCurrency > 0 && <Badge className="bg-pink-700">💎 {player.premiumCurrency}</Badge>}
-            <Badge variant="outline" className="border-red-500 text-red-400">
-              ⚔️ {player.attack + (player.magicPower || 0) + (player.rangeBonus || 0)}
-            </Badge>
-            <Badge variant="outline" className="border-blue-500 text-blue-400">
-              🛡️ {player.defense}
-            </Badge>
+            <Badge variant="outline" className="border-red-500 text-red-400">⚔️ {stats.attack}</Badge>
+            <Badge variant="outline" className="border-blue-500 text-blue-400">🛡️ {stats.defense}</Badge>
             <Badge variant="outline" className="border-green-500 text-green-400">
-              ❤️ {player.health}/{player.maxHealth}
+              ❤️ {player.health}/{stats.maxHealth}
+            </Badge>
+            <Badge variant="outline" className="border-yellow-500 text-yellow-400">
+              🏆 {player.pvpWins}W/{player.pvpLosses}L
             </Badge>
           </div>
           <div className="max-w-md mx-auto">
@@ -567,11 +769,12 @@ export default function Index() {
         </header>
 
         <Tabs defaultValue="battle" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-800">
-            <TabsTrigger value="battle" className="text-xs">⚔️ Битва</TabsTrigger>
-            <TabsTrigger value="shop" className="text-xs">🏪 Магазин</TabsTrigger>
-            <TabsTrigger value="inventory" className="text-xs">🎒 Инвентарь</TabsTrigger>
-            <TabsTrigger value="chat" className="text-xs">💬 Чат</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 mb-6 bg-slate-800 text-[10px]">
+            <TabsTrigger value="battle">⚔️ PvE</TabsTrigger>
+            <TabsTrigger value="pvp">🔥 PvP</TabsTrigger>
+            <TabsTrigger value="shop">🏪 Магазин</TabsTrigger>
+            <TabsTrigger value="inventory">🎒 Снаряжение</TabsTrigger>
+            <TabsTrigger value="leaderboard">🏆 Топ</TabsTrigger>
           </TabsList>
 
           <TabsContent value="battle">
@@ -589,7 +792,7 @@ export default function Index() {
                   <div className="text-center mb-4">
                     <div className="text-6xl mb-2">{currentMob.icon}</div>
                     <h3 className="text-xl text-purple-300 mb-2">{currentMob.name}</h3>
-                    {currentMob.isBoss && <Badge className="bg-red-600 mb-2">👑 БОСС</Badge>}
+                    {currentMob.isBoss && <Badge className="bg-red-600 mb-2">👑 БОСС (НЕ АТАКУЕТ)</Badge>}
                     <Progress value={(currentMob.health / currentMob.maxHealth) * 100} className="h-4 mb-2" />
                     <div className="text-sm text-purple-400">
                       ❤️ {currentMob.health}/{currentMob.maxHealth} | ⚔️ {currentMob.attack} | 🛡️ {currentMob.defense}
@@ -603,7 +806,59 @@ export default function Index() {
                   </ScrollArea>
 
                   <Button onClick={attackMob} className="w-full bg-red-600 hover:bg-red-700 text-lg">
-                    {player.race === 'mage' || player.race === 'archer' ? '🏹 ДАЛЬНЯЯ АТАКА' : '⚔️ БЛИЖНЯЯ АТАКА'}
+                    ⚔️ АТАКОВАТЬ
+                  </Button>
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="pvp">
+            <Card className="bg-slate-800 border-2 border-purple-500 p-6">
+              {!inPvp ? (
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🔥</div>
+                  <h2 className="text-2xl mb-4 text-purple-300">PvP Арена</h2>
+                  <p className="text-sm text-purple-400 mb-4">
+                    Сражайся с другими игроками!<br/>
+                    Твоя экипировка учитывается в бою
+                  </p>
+                  <Button onClick={findPvpOpponent} className="bg-red-600 hover:bg-red-700 text-lg px-8">
+                    НАЙТИ ПРОТИВНИКА
+                  </Button>
+                </div>
+              ) : pvpOpponent && (
+                <div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="text-center p-3 bg-slate-900 border border-green-500 rounded">
+                      <div className="text-4xl mb-2">{player.avatar}</div>
+                      <h3 className="text-sm font-bold text-green-400 mb-1">{player.username}</h3>
+                      <Badge className="text-[10px] mb-2">Ур.{player.level}</Badge>
+                      <Progress value={(pvpPlayerHealth / stats.maxHealth) * 100} className="h-3 mb-1" />
+                      <div className="text-[10px] text-green-400">
+                        ❤️ {pvpPlayerHealth}/{stats.maxHealth}
+                      </div>
+                    </div>
+
+                    <div className="text-center p-3 bg-slate-900 border border-red-500 rounded">
+                      <div className="text-4xl mb-2">{pvpOpponent.avatar}</div>
+                      <h3 className="text-sm font-bold text-red-400 mb-1">{pvpOpponent.username}</h3>
+                      <Badge className="text-[10px] mb-2">Ур.{pvpOpponent.level}</Badge>
+                      <Progress value={(pvpOpponentHealth / pvpOpponent.maxHealth) * 100} className="h-3 mb-1" />
+                      <div className="text-[10px] text-red-400">
+                        ❤️ {pvpOpponentHealth}/{pvpOpponent.maxHealth}
+                      </div>
+                    </div>
+                  </div>
+
+                  <ScrollArea className="h-32 bg-slate-900 p-3 mb-4 border border-purple-500">
+                    {pvpLog.map((log, i) => (
+                      <div key={i} className="text-xs text-purple-300 mb-1">{log}</div>
+                    ))}
+                  </ScrollArea>
+
+                  <Button onClick={pvpAttack} className="w-full bg-red-600 hover:bg-red-700 text-lg">
+                    🔥 АТАКОВАТЬ
                   </Button>
                 </div>
               )}
@@ -662,11 +917,33 @@ export default function Index() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {inventory.map(item => (
-                  <Card key={item.id} className={`bg-slate-800 border-2 ${getRarityColor(item.rarity)} p-3`}>
+                  <Card key={item.id} className={`bg-slate-800 border-2 ${item.equipped ? 'border-green-500' : getRarityColor(item.rarity)} p-3`}>
                     <div className="text-center">
                       <div className="text-3xl mb-2">{item.icon}</div>
-                      <h3 className="text-[9px] font-bold text-purple-300">{item.name}</h3>
-                      <Badge className="text-[8px] bg-slate-700">x{item.quantity}</Badge>
+                      <h3 className="text-[9px] font-bold text-purple-300 mb-1">{item.name}</h3>
+                      <Badge className="text-[8px] bg-slate-700 mb-2">x{item.quantity}</Badge>
+                      
+                      {(item.attackBonus > 0 || item.defenseBonus > 0 || item.healthBonus > 0) && (
+                        <div className="flex justify-center gap-1 mb-2 text-[8px]">
+                          {item.attackBonus > 0 && <Badge className="text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
+                          {item.defenseBonus > 0 && <Badge className="text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
+                          {item.healthBonus > 0 && <Badge className="text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
+                        </div>
+                      )}
+
+                      {item.category === 'potion' ? (
+                        <Button onClick={() => usePotion(item)} size="sm" className="w-full bg-green-600 hover:bg-green-700 text-[9px] h-6">
+                          ИСПОЛЬЗОВАТЬ
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={() => toggleEquip(item.id)} 
+                          size="sm" 
+                          className={`w-full text-[9px] h-6 ${item.equipped ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                        >
+                          {item.equipped ? 'СНЯТЬ' : 'НАДЕТЬ'}
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 ))}
@@ -674,41 +951,46 @@ export default function Index() {
             )}
           </TabsContent>
 
-          <TabsContent value="chat">
-            <Card className="bg-slate-800 border-2 border-purple-500 p-4">
-              <h2 className="text-xl text-purple-300 mb-4 text-center">💬 Глобальный чат</h2>
-              
-              <ScrollArea className="h-96 bg-slate-900 p-4 mb-4 border border-purple-500">
-                {chatMessages.map(msg => (
-                  <div key={msg.id} className="mb-3 p-2 bg-slate-800 border border-purple-600 rounded">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className={`${getRaceColor(msg.race)} bg-slate-700 text-xs`}>
-                        Ур.{msg.level}
-                      </Badge>
-                      <span className="text-xs font-bold text-purple-300">{msg.username}</span>
-                      <span className="text-[10px] text-purple-500 ml-auto">{msg.timestamp}</span>
+          <TabsContent value="leaderboard">
+            <Card className="bg-slate-800 border-2 border-purple-500 p-6">
+              <h2 className="text-2xl mb-4 text-purple-300 text-center">🏆 ТОП-10 ИГРОКОВ</h2>
+              <p className="text-xs text-purple-400 text-center mb-6">
+                Награды еженедельно:<br/>
+                🥇 1 место: +1000 монет | 🥈 2 место: +500 монет | 🥉 3 место: +250 монет
+              </p>
+
+              <div className="space-y-2">
+                {leaderboard.map((p, index) => (
+                  <div 
+                    key={p.username} 
+                    className={`p-3 rounded border-2 ${
+                      index === 0 ? 'bg-yellow-900 border-yellow-500' : 
+                      index === 1 ? 'bg-gray-700 border-gray-400' : 
+                      index === 2 ? 'bg-orange-900 border-orange-600' : 
+                      'bg-slate-900 border-purple-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-2xl">
+                          {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                        </div>
+                        <div className="text-3xl">{p.avatar}</div>
+                        <div>
+                          <div className="font-bold text-purple-200">{p.username}</div>
+                          <div className="text-xs text-purple-400">
+                            {p.race.toUpperCase()} | 🏆 {p.pvpWins}W/{p.pvpLosses}L
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge className="bg-purple-700 mb-1">Ур.{p.level}</Badge>
+                        <div className="text-[10px] text-purple-400">Опыт: {p.experience}</div>
+                        <div className="text-[10px] text-yellow-400">Очков: {p.weeklyScore}</div>
+                      </div>
                     </div>
-                    <p className="text-sm text-purple-200">{msg.message}</p>
                   </div>
                 ))}
-                {chatMessages.length === 0 && (
-                  <div className="text-center text-purple-400 py-8">
-                    Сообщений пока нет. Будь первым!
-                  </div>
-                )}
-              </ScrollArea>
-
-              <div className="flex gap-2">
-                <Textarea
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Напиши сообщение..."
-                  className="flex-1 bg-slate-900 border-purple-500 text-purple-100"
-                  rows={2}
-                />
-                <Button onClick={sendMessage} className="bg-purple-600 hover:bg-purple-700">
-                  ОТПРАВИТЬ
-                </Button>
               </div>
             </Card>
           </TabsContent>
