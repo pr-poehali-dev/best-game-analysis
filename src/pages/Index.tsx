@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,19 +16,17 @@ interface Player {
   race: 'warrior' | 'mage' | 'archer' | 'ghost';
   coins: number;
   gems: number;
-  premiumCurrency: number;
   level: number;
   experience: number;
   health: number;
   maxHealth: number;
   attack: number;
   defense: number;
-  magicPower: number;
-  rangeBonus: number;
   avatar: string;
   pvpWins: number;
   pvpLosses: number;
   weeklyScore: number;
+  isVIP?: boolean;
 }
 
 interface ShopItem {
@@ -38,10 +35,8 @@ interface ShopItem {
   icon: string;
   description: string;
   category: string;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary' | 'premium';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
   priceCoins: number;
-  priceGems: number;
-  pricePremium: number;
   attackBonus: number;
   defenseBonus: number;
   healthBonus: number;
@@ -58,17 +53,15 @@ interface Mob {
   attack: number;
   defense: number;
   coinsReward: number;
-  gemsReward: number;
-  artifactName: string | null;
 }
 
 interface ChatMessage {
   id: number;
   username: string;
-  race: string;
   level: number;
   message: string;
   timestamp: string;
+  isVIP?: boolean;
 }
 
 interface InventoryItem extends ShopItem {
@@ -77,74 +70,23 @@ interface InventoryItem extends ShopItem {
 }
 
 const RACES = [
-  { id: 'warrior', name: 'Воин', icon: '⚔️', desc: 'Мощная ближняя атака', bonuses: '+10 Атака, +5 Защита', price: 0 },
-  { id: 'mage', name: 'Маг', icon: '🧙', desc: 'Дальняя магическая атака', bonuses: '+15 Магия, -5 Защита', price: 0 },
-  { id: 'archer', name: 'Лучник', icon: '🏹', desc: 'Дальняя точная атака', bonuses: '+12 Дальность, +3 Атака', price: 0 },
-  { id: 'ghost', name: 'Призрак', icon: '👻', desc: 'Эксклюзивная раса', bonuses: '+20 Магия, +10 Уворот', price: 100 }
+  { id: 'warrior', name: 'Воин', icon: '⚔️', desc: 'Мощная атака', bonuses: '+10 Атака, +5 Защита', price: 0 },
+  { id: 'mage', name: 'Маг', icon: '🧙', desc: 'Магия', bonuses: '+15 Магия', price: 0 },
+  { id: 'archer', name: 'Лучник', icon: '🏹', desc: 'Точность', bonuses: '+12 Точность', price: 0 },
+  { id: 'ghost', name: 'Призрак', icon: '👻', desc: 'Эксклюзив', bonuses: '+20 Магия', price: 100 }
 ];
 
 const SHOP_ITEMS: ShopItem[] = [
-  {id: 1, name: 'Деревянный меч', icon: '🗡️', category: 'weapon', rarity: 'common', priceCoins: 50, priceGems: 0, pricePremium: 0, attackBonus: 5, defenseBonus: 0, healthBonus: 0, description: 'Простое оружие'},
-  {id: 2, name: 'Железный меч', icon: '⚔️', category: 'weapon', rarity: 'common', priceCoins: 120, priceGems: 0, pricePremium: 0, attackBonus: 12, defenseBonus: 0, healthBonus: 0, description: 'Надежный клинок'},
-  {id: 3, name: 'Стальной меч', icon: '🔪', category: 'weapon', rarity: 'rare', priceCoins: 250, priceGems: 0, pricePremium: 0, attackBonus: 20, defenseBonus: 0, healthBonus: 0, description: 'Острое оружие'},
-  {id: 4, name: 'Огненный меч', icon: '🔥', category: 'weapon', rarity: 'epic', priceCoins: 0, priceGems: 50, pricePremium: 0, attackBonus: 35, defenseBonus: 0, healthBonus: 0, description: 'Пылающий клинок'},
-  {id: 5, name: 'Меч молний', icon: '⚡', category: 'weapon', rarity: 'epic', priceCoins: 0, priceGems: 60, pricePremium: 0, attackBonus: 42, defenseBonus: 0, healthBonus: 0, description: 'Бьет током'},
-  {id: 6, name: 'Экскалибур', icon: '🗡️', category: 'weapon', rarity: 'legendary', priceCoins: 0, priceGems: 200, pricePremium: 0, attackBonus: 80, defenseBonus: 0, healthBonus: 0, description: 'Легендарный меч'},
-  {id: 7, name: 'Драконий клинок', icon: '🐉', category: 'weapon', rarity: 'legendary', priceCoins: 0, priceGems: 250, pricePremium: 0, attackBonus: 95, defenseBonus: 0, healthBonus: 0, description: 'Драконья сила'},
-  {id: 8, name: 'Философский камень', icon: '💎', category: 'premium', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 500, attackBonus: 150, defenseBonus: 150, healthBonus: 500, description: '🔥 ДОНАТ'},
-  {id: 9, name: 'Кожаная броня', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 60, priceGems: 0, pricePremium: 0, attackBonus: 0, defenseBonus: 5, healthBonus: 0, description: 'Базовая защита'},
-  {id: 10, name: 'Кольчуга', icon: '⛓️', category: 'armor', rarity: 'common', priceCoins: 150, priceGems: 0, pricePremium: 0, attackBonus: 0, defenseBonus: 12, healthBonus: 0, description: 'Прочная защита'},
-  {id: 11, name: 'Рыцарская броня', icon: '🏰', category: 'armor', rarity: 'epic', priceCoins: 0, priceGems: 45, pricePremium: 0, attackBonus: 0, defenseBonus: 35, healthBonus: 0, description: 'Броня рыцаря'},
-  {id: 12, name: 'Драконья броня', icon: '🐲', category: 'armor', rarity: 'legendary', priceCoins: 0, priceGems: 180, pricePremium: 0, attackBonus: 0, defenseBonus: 70, healthBonus: 0, description: 'Драконья чешуя'},
-  {id: 13, name: 'Броня богов', icon: '👑', category: 'armor', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 300, attackBonus: 0, defenseBonus: 200, healthBonus: 300, description: '🔥 ДОНАТ'},
-  {id: 14, name: 'Малое зелье', icon: '🧪', category: 'potion', rarity: 'common', priceCoins: 20, priceGems: 0, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 20, description: '+20 HP'},
-  {id: 15, name: 'Зелье здоровья', icon: '⚗️', category: 'potion', rarity: 'common', priceCoins: 50, priceGems: 0, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 50, description: '+50 HP'},
-  {id: 16, name: 'Эликсир жизни', icon: '💊', category: 'potion', rarity: 'epic', priceCoins: 0, priceGems: 30, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 200, description: '+200 HP'},
-  {id: 17, name: 'Зелье бессмертия', icon: '🌟', category: 'potion', rarity: 'legendary', priceCoins: 0, priceGems: 100, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 500, description: 'Полное лечение'},
-  {id: 18, name: 'Божественный эликсир', icon: '✨', category: 'potion', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 150, attackBonus: 0, defenseBonus: 0, healthBonus: 1000, description: '🔥 ДОНАТ'},
-  {id: 19, name: 'Лук', icon: '🏹', category: 'weapon', rarity: 'common', priceCoins: 80, priceGems: 0, pricePremium: 0, attackBonus: 8, defenseBonus: 0, healthBonus: 0, description: 'Дальнобойное'},
-  {id: 20, name: 'Волшебный лук', icon: '✨', category: 'weapon', rarity: 'epic', priceCoins: 0, priceGems: 70, pricePremium: 0, attackBonus: 40, defenseBonus: 0, healthBonus: 0, description: 'Магические стрелы'},
-  {id: 21, name: 'Кольцо силы', icon: '💍', category: 'ring', rarity: 'rare', priceCoins: 180, priceGems: 0, pricePremium: 0, attackBonus: 10, defenseBonus: 0, healthBonus: 0, description: '+10 Атака'},
-  {id: 22, name: 'Кольцо защиты', icon: '💎', category: 'ring', rarity: 'rare', priceCoins: 180, priceGems: 0, pricePremium: 0, attackBonus: 0, defenseBonus: 10, healthBonus: 0, description: '+10 Защита'},
-  {id: 23, name: 'Кольцо жизни', icon: '❤️', category: 'ring', rarity: 'epic', priceCoins: 0, priceGems: 40, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 50, description: '+50 HP'},
-  {id: 24, name: 'Всевластия кольцо', icon: '🔮', category: 'ring', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 250, attackBonus: 50, defenseBonus: 50, healthBonus: 200, description: '🔥 ДОНАТ'},
-  {id: 25, name: 'Мьёльнир', icon: '⚒️', category: 'weapon', rarity: 'legendary', priceCoins: 0, priceGems: 220, pricePremium: 0, attackBonus: 90, defenseBonus: 0, healthBonus: 0, description: 'Молот Тора'},
-  {id: 26, name: 'Посох мага', icon: '🪄', category: 'magic', rarity: 'rare', priceCoins: 240, priceGems: 0, pricePremium: 0, attackBonus: 16, defenseBonus: 0, healthBonus: 0, description: 'Магическое оружие'},
-  {id: 27, name: 'Посох архимага', icon: '✨', category: 'magic', rarity: 'legendary', priceCoins: 0, priceGems: 280, pricePremium: 0, attackBonus: 100, defenseBonus: 0, healthBonus: 0, description: 'Высшая магия'},
-  {id: 28, name: 'Посох создателя', icon: '🌟', category: 'magic', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 400, attackBonus: 200, defenseBonus: 50, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 29, name: 'Питомец: Волк', icon: '🐺', category: 'pet', rarity: 'rare', priceCoins: 350, priceGems: 0, pricePremium: 0, attackBonus: 15, defenseBonus: 0, healthBonus: 0, description: 'Хищный зверь'},
-  {id: 30, name: 'Питомец: Феникс', icon: '🔥', category: 'pet', rarity: 'legendary', priceCoins: 0, priceGems: 320, pricePremium: 0, attackBonus: 60, defenseBonus: 0, healthBonus: 100, description: 'Возрождается'},
-  {id: 31, name: 'Питомец: Дракон', icon: '🐉', category: 'pet', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 600, attackBonus: 150, defenseBonus: 100, healthBonus: 200, description: '🔥 ДОНАТ'},
-  {id: 32, name: 'Крылья ангела', icon: '🪽', category: 'cloak', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 350, attackBonus: 0, defenseBonus: 100, healthBonus: 150, description: '🔥 ДОНАТ'},
-  {id: 33, name: 'Амулет силы', icon: '📿', category: 'amulet', rarity: 'rare', priceCoins: 160, priceGems: 0, pricePremium: 0, attackBonus: 8, defenseBonus: 0, healthBonus: 0, description: 'Усиливает атаку'},
-  {id: 34, name: 'Амулет бессмертного', icon: '🌟', category: 'amulet', rarity: 'legendary', priceCoins: 0, priceGems: 190, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 150, description: '+150 HP'},
-  {id: 35, name: 'Скин: Король', icon: '🤴', category: 'skin', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 200, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 36, name: 'Скин: Ангел', icon: '👼', category: 'skin', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 280, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 37, name: 'Скин: Демон', icon: '😈', category: 'skin', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 280, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 38, name: '1000 Монет', icon: '🪙', category: 'currency', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 50, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 39, name: '5000 Монет', icon: '💰', category: 'currency', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 200, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 40, name: '100 Кристаллов', icon: '💎', category: 'currency', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 100, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 41, name: 'Копье', icon: '🔱', category: 'weapon', rarity: 'rare', priceCoins: 180, priceGems: 0, pricePremium: 0, attackBonus: 17, defenseBonus: 0, healthBonus: 0, description: 'Длинное оружие'},
-  {id: 42, name: 'Катана', icon: '⚔️', category: 'weapon', rarity: 'epic', priceCoins: 0, priceGems: 80, pricePremium: 0, attackBonus: 48, defenseBonus: 0, healthBonus: 0, description: 'Оружие самурая'},
-  {id: 43, name: 'Плазменная пушка', icon: '🚀', category: 'weapon', rarity: 'legendary', priceCoins: 0, priceGems: 350, pricePremium: 0, attackBonus: 110, defenseBonus: 0, healthBonus: 0, description: 'Оружие будущего'},
-  {id: 44, name: 'Божественный меч', icon: '🌟', category: 'weapon', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 700, attackBonus: 250, defenseBonus: 0, healthBonus: 0, description: '🔥 ДОНАТ'},
-  {id: 45, name: 'Щит героя', icon: '⭐', category: 'shield', rarity: 'legendary', priceCoins: 0, priceGems: 150, pricePremium: 0, attackBonus: 0, defenseBonus: 50, healthBonus: 0, description: 'Непробиваемый'},
-  {id: 46, name: 'Магический щит', icon: '🌀', category: 'shield', rarity: 'epic', priceCoins: 0, priceGems: 50, pricePremium: 0, attackBonus: 0, defenseBonus: 25, healthBonus: 0, description: 'Отражает магию'},
-  {id: 47, name: 'Плащ невидимости', icon: '🧥', category: 'cloak', rarity: 'legendary', priceCoins: 0, priceGems: 280, pricePremium: 0, attackBonus: 0, defenseBonus: 50, healthBonus: 0, description: 'Невидимость'},
-  {id: 48, name: 'Перчатки силы', icon: '✊', category: 'gloves', rarity: 'epic', priceCoins: 0, priceGems: 50, pricePremium: 0, attackBonus: 25, defenseBonus: 0, healthBonus: 0, description: 'Невероятная сила'},
-  {id: 49, name: 'Сапоги-скороходы', icon: '👟', category: 'boots', rarity: 'epic', priceCoins: 0, priceGems: 60, pricePremium: 0, attackBonus: 0, defenseBonus: 20, healthBonus: 0, description: 'Скорость'},
-  {id: 50, name: 'Корона правителя', icon: '👑', category: 'helmet', rarity: 'legendary', priceCoins: 0, priceGems: 250, pricePremium: 0, attackBonus: 20, defenseBonus: 40, healthBonus: 0, description: 'Королевская'},
-  {id: 51, name: 'Руна силы', icon: '🔷', category: 'rune', rarity: 'epic', priceCoins: 0, priceGems: 40, pricePremium: 0, attackBonus: 20, defenseBonus: 0, healthBonus: 0, description: 'Постоянный бонус'},
-  {id: 52, name: 'Руна защиты', icon: '🔶', category: 'rune', rarity: 'epic', priceCoins: 0, priceGems: 40, pricePremium: 0, attackBonus: 0, defenseBonus: 20, healthBonus: 0, description: 'Защита'},
-  {id: 53, name: 'Руна бессмертия', icon: '♾️', category: 'rune', rarity: 'legendary', priceCoins: 0, priceGems: 300, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 200, description: '+200 HP'},
-  {id: 54, name: 'Талисман удачи', icon: '🍀', category: 'amulet', rarity: 'epic', priceCoins: 0, priceGems: 60, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 0, description: 'Больше наград'},
-  {id: 55, name: 'Кристалл маны', icon: '💠', category: 'magic', rarity: 'rare', priceCoins: 140, priceGems: 0, pricePremium: 0, attackBonus: 12, defenseBonus: 0, healthBonus: 0, description: 'Источник магии'},
-  {id: 56, name: 'Сфера всевидения', icon: '🔮', category: 'magic', rarity: 'legendary', priceCoins: 0, priceGems: 270, pricePremium: 0, attackBonus: 50, defenseBonus: 40, healthBonus: 0, description: 'Видит будущее'},
-  {id: 57, name: 'Святая вода', icon: '💧', category: 'potion', rarity: 'rare', priceCoins: 90, priceGems: 0, pricePremium: 0, attackBonus: 0, defenseBonus: 0, healthBonus: 60, description: 'Лечит +60'},
-  {id: 58, name: 'Эликсир силы', icon: '⚡', category: 'potion', rarity: 'epic', priceCoins: 0, priceGems: 45, pricePremium: 0, attackBonus: 30, defenseBonus: 0, healthBonus: 0, description: '+30 Атака'},
-  {id: 59, name: 'Эликсир защиты', icon: '🛡️', category: 'potion', rarity: 'epic', priceCoins: 0, priceGems: 45, pricePremium: 0, attackBonus: 0, defenseBonus: 30, healthBonus: 0, description: '+30 Защита'},
-  {id: 60, name: 'Премиум статус', icon: '⭐', category: 'premium', rarity: 'premium', priceCoins: 0, priceGems: 0, pricePremium: 1000, attackBonus: 100, defenseBonus: 100, healthBonus: 500, description: '🔥 VIP ДОНАТ'},
+  {id: 1, name: 'Деревянный меч', icon: '🗡️', category: 'weapon', rarity: 'common', priceCoins: 50, attackBonus: 5, defenseBonus: 0, healthBonus: 0, description: 'Простое оружие'},
+  {id: 2, name: 'Железный меч', icon: '⚔️', category: 'weapon', rarity: 'common', priceCoins: 120, attackBonus: 12, defenseBonus: 0, healthBonus: 0, description: 'Надежный клинок'},
+  {id: 3, name: 'Кожаная броня', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 60, attackBonus: 0, defenseBonus: 5, healthBonus: 0, description: 'Базовая защита'},
+  {id: 4, name: 'Малое зелье', icon: '🧪', category: 'potion', rarity: 'common', priceCoins: 20, attackBonus: 0, defenseBonus: 0, healthBonus: 20, description: '+20 HP'},
 ];
+
+const PROMOCODES: Record<string, { coins?: number; vip?: boolean }> = {
+  'HDHDEH': { coins: 100 },
+  'HSGSCESJDNFKLFLW': { vip: true }
+};
 
 export default function Index() {
   const [showAuth, setShowAuth] = useState(true);
@@ -160,17 +102,10 @@ export default function Index() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [showDonatInfo, setShowDonatInfo] = useState(false);
-  const [pvpOpponent, setPvpOpponent] = useState<Player | null>(null);
-  const [inPvp, setInPvp] = useState(false);
-  const [pvpLog, setPvpLog] = useState<string[]>([]);
-  const [pvpPlayerHealth, setPvpPlayerHealth] = useState(0);
-  const [pvpOpponentHealth, setPvpOpponentHealth] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
     const savedPlayer = localStorage.getItem('lyriumPlayer');
-    const savedInventory = localStorage.getItem('lyriumInventory');
     const savedChat = localStorage.getItem('lyriumChat');
     
     if (savedPlayer) {
@@ -178,60 +113,39 @@ export default function Index() {
       if (!parsed.pvpWins) parsed.pvpWins = 0;
       if (!parsed.pvpLosses) parsed.pvpLosses = 0;
       if (!parsed.weeklyScore) parsed.weeklyScore = 0;
+      if (!parsed.isVIP) parsed.isVIP = false;
+      const savedInv = localStorage.getItem(`lyriumInventory_${parsed.username}`);
+      if (savedInv) setInventory(JSON.parse(savedInv));
       setPlayer(parsed);
       setShowAuth(false);
     }
     
-    if (savedInventory) setInventory(JSON.parse(savedInventory));
     if (savedChat) setChatMessages(JSON.parse(savedChat));
-
-    checkWeeklyReset();
   }, []);
 
   useEffect(() => {
     if (player) {
       localStorage.setItem('lyriumPlayer', JSON.stringify(player));
       const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
-      const updated = allPlayers.map((p: Player) => p.username === player.username ? player : p);
-      localStorage.setItem('lyriumAllPlayers', JSON.stringify(updated));
+      const exists = allPlayers.findIndex((p: Player) => p.username === player.username);
+      if (exists !== -1) {
+        allPlayers[exists] = player;
+      } else {
+        allPlayers.push(player);
+      }
+      localStorage.setItem('lyriumAllPlayers', JSON.stringify(allPlayers));
     }
   }, [player]);
 
   useEffect(() => {
-    localStorage.setItem('lyriumInventory', JSON.stringify(inventory));
-  }, [inventory]);
+    if (player) {
+      localStorage.setItem(`lyriumInventory_${player.username}`, JSON.stringify(inventory));
+    }
+  }, [inventory, player]);
 
   useEffect(() => {
     localStorage.setItem('lyriumChat', JSON.stringify(chatMessages));
   }, [chatMessages]);
-
-  const checkWeeklyReset = () => {
-    const lastReset = localStorage.getItem('lyriumWeeklyReset');
-    const now = Date.now();
-    const weekInMs = 7 * 24 * 60 * 60 * 1000;
-
-    if (!lastReset || now - parseInt(lastReset) > weekInMs) {
-      const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
-      const sorted = allPlayers
-        .filter((p: Player) => p.weeklyScore > 0)
-        .sort((a: Player, b: Player) => b.weeklyScore - a.weeklyScore);
-
-      if (sorted.length > 0) {
-        if (sorted[0]) sorted[0].coins += 1000;
-        if (sorted[1]) sorted[1].coins += 500;
-        if (sorted[2]) sorted[2].coins += 250;
-
-        const resetPlayers = allPlayers.map((p: Player) => {
-          const winner = sorted.find((s: Player) => s.username === p.username);
-          return { ...p, weeklyScore: 0, coins: winner ? winner.coins : p.coins };
-        });
-
-        localStorage.setItem('lyriumAllPlayers', JSON.stringify(resetPlayers));
-      }
-
-      localStorage.setItem('lyriumWeeklyReset', now.toString());
-    }
-  };
 
   const handleAuth = () => {
     if (!username || !password) {
@@ -251,6 +165,10 @@ export default function Index() {
       if (!existingPlayer.pvpWins) existingPlayer.pvpWins = 0;
       if (!existingPlayer.pvpLosses) existingPlayer.pvpLosses = 0;
       if (!existingPlayer.weeklyScore) existingPlayer.weeklyScore = 0;
+      if (!existingPlayer.isVIP) existingPlayer.isVIP = false;
+
+      const savedInv = localStorage.getItem(`lyriumInventory_${username}`);
+      if (savedInv) setInventory(JSON.parse(savedInv));
 
       setPlayer(existingPlayer);
       setShowAuth(false);
@@ -268,23 +186,14 @@ export default function Index() {
 
   const selectRace = (raceId: string) => {
     const race = RACES.find(r => r.id === raceId);
-    if (!race) return;
+    if (!race || race.price > 0) return;
 
-    if (race.price > 0) {
-      setShowDonatInfo(true);
-      return;
-    }
-
-    completeRegistration(raceId);
-  };
-
-  const completeRegistration = (raceId: string) => {
     const raceConfig = {
-      warrior: { avatar: '⚔️', attack: 20, defense: 10, magic: 0, range: 0, health: 150 },
-      mage: { avatar: '🧙', attack: 10, defense: 5, magic: 25, range: 15, health: 100 },
-      archer: { avatar: '🏹', attack: 15, defense: 7, magic: 0, range: 20, health: 120 },
-      ghost: { avatar: '👻', attack: 15, defense: 8, magic: 30, range: 12, health: 110 }
-    }[raceId] || { avatar: '⚔️', attack: 20, defense: 10, magic: 0, range: 0, health: 150 };
+      warrior: { avatar: '⚔️', attack: 20, defense: 10, health: 150 },
+      mage: { avatar: '🧙', attack: 10, defense: 5, health: 100 },
+      archer: { avatar: '🏹', attack: 15, defense: 7, health: 120 },
+      ghost: { avatar: '👻', attack: 15, defense: 8, health: 110 }
+    }[raceId] || { avatar: '⚔️', attack: 20, defense: 10, health: 150 };
 
     const newPlayer: Player = {
       username,
@@ -292,19 +201,17 @@ export default function Index() {
       race: raceId as any,
       coins: 100,
       gems: 10,
-      premiumCurrency: 0,
       level: 1,
       experience: 0,
       health: raceConfig.health,
       maxHealth: raceConfig.health,
       attack: raceConfig.attack,
       defense: raceConfig.defense,
-      magicPower: raceConfig.magic,
-      rangeBonus: raceConfig.range,
       avatar: raceConfig.avatar,
       pvpWins: 0,
       pvpLosses: 0,
-      weeklyScore: 0
+      weeklyScore: 0,
+      isVIP: false
     };
 
     const savedPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
@@ -326,16 +233,14 @@ export default function Index() {
     const mobData = {
       id: Date.now(),
       name: isBoss ? `БОСС Ур.${mobLevel}` : `Моб Ур.${mobLevel}`,
-      icon: isBoss ? '👑' : ['🟢', '👹', '💀', '👺', '🧌', '🐺', '🧟', '🧛'][Math.floor(Math.random() * 8)],
+      icon: isBoss ? '👑' : ['🟢', '👹', '💀'][Math.floor(Math.random() * 3)],
       level: mobLevel,
       isBoss,
-      health: isBoss ? mobLevel * 200 : mobLevel * 10,
-      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 10,
-      attack: isBoss ? 0 : mobLevel * 2,
-      defense: isBoss ? mobLevel * 5 : mobLevel,
-      coinsReward: isBoss ? mobLevel * 30 : Math.max(2, Math.floor(mobLevel * 1.5)),
-      gemsReward: isBoss ? mobLevel * 3 : 0,
-      artifactName: isBoss ? `Артефакт Ур.${mobLevel}` : null
+      health: isBoss ? mobLevel * 200 : mobLevel * 20,
+      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 20,
+      attack: isBoss ? 0 : mobLevel * 3,
+      defense: isBoss ? mobLevel * 5 : mobLevel * 2,
+      coinsReward: isBoss ? mobLevel * 30 : Math.max(2, Math.floor(mobLevel * 1.5))
     };
 
     setCurrentMob(mobData);
@@ -343,20 +248,15 @@ export default function Index() {
     setBattleLog([`⚔️ Началась битва с ${mobData.name}!`]);
   };
 
-  const getEquippedBonuses = () => {
-    const equipped = inventory.filter(i => i.equipped);
-    return {
-      attack: equipped.reduce((sum, i) => sum + i.attackBonus, 0),
-      defense: equipped.reduce((sum, i) => sum + i.defenseBonus, 0),
-      health: equipped.reduce((sum, i) => sum + i.healthBonus, 0)
-    };
-  };
-
   const getTotalStats = () => {
     if (!player) return { attack: 0, defense: 0, maxHealth: 0 };
-    const bonuses = getEquippedBonuses();
+    const bonuses = {
+      attack: inventory.filter(i => i.equipped).reduce((sum, i) => sum + i.attackBonus, 0),
+      defense: inventory.filter(i => i.equipped).reduce((sum, i) => sum + i.defenseBonus, 0),
+      health: inventory.filter(i => i.equipped).reduce((sum, i) => sum + i.healthBonus, 0)
+    };
     return {
-      attack: player.attack + (player.magicPower || 0) + (player.rangeBonus || 0) + bonuses.attack,
+      attack: player.attack + bonuses.attack,
       defense: player.defense + bonuses.defense,
       maxHealth: player.maxHealth + bonuses.health
     };
@@ -374,7 +274,7 @@ export default function Index() {
 
     setBattleLog(prev => [...prev, 
       `💥 Ты нанес ${playerDamage} урона!`,
-      currentMob.isBoss ? '🛡️ Босс не атакует!' : (mobDamage > 0 ? `🩸 Получено ${mobDamage} урона!` : '🛡️ Атака заблокирована!')
+      currentMob.isBoss ? '🛡️ Босс не атакует!' : (mobDamage > 0 ? `🩸 Получено ${mobDamage} урона!` : '🛡️ Блок!')
     ]);
 
     if (newMobHealth <= 0) {
@@ -385,7 +285,6 @@ export default function Index() {
       const updatedPlayer = {
         ...player,
         coins: player.coins + currentMob.coinsReward,
-        gems: player.gems + currentMob.gemsReward,
         experience: levelUp ? newExp - player.level * 100 : newExp,
         level: levelUp ? player.level + 1 : player.level,
         weeklyScore: player.weeklyScore + exp
@@ -393,16 +292,14 @@ export default function Index() {
 
       setPlayer(updatedPlayer);
 
-      if (currentMob.artifactName) {
+      if (currentMob.isBoss && Math.random() < 0.1) {
         const artifact: InventoryItem = {
           id: Date.now(),
-          name: currentMob.artifactName,
+          name: `Артефакт Ур.${currentMob.level}`,
           icon: '✨',
           category: 'artifact',
           rarity: 'legendary',
           priceCoins: 0,
-          priceGems: 0,
-          pricePremium: 0,
           attackBonus: currentMob.level * 5,
           defenseBonus: currentMob.level * 3,
           healthBonus: currentMob.level * 10,
@@ -411,14 +308,15 @@ export default function Index() {
           equipped: false
         };
         setInventory([...inventory, artifact]);
+        setBattleLog(prev => [...prev, `✨ ВЫПАЛ АРТЕФАКТ!`]);
       }
 
-      setBattleLog(prev => [...prev, `🎉 ПОБЕДА! +${exp} опыта, +${currentMob.coinsReward} монет${currentMob.artifactName ? `, получен ${currentMob.artifactName}!` : '!'}`]);
+      setBattleLog(prev => [...prev, `🎉 ПОБЕДА! +${exp} опыта, +${currentMob.coinsReward} монет`]);
       setInBattle(false);
       setCurrentMob(null);
       
       if (levelUp) {
-        toast({ title: "🎊 НОВЫЙ УРОВЕНЬ!", description: `Поздравляем! Теперь ты ${updatedPlayer.level} уровня!` });
+        toast({ title: "🎊 НОВЫЙ УРОВЕНЬ!", description: `Теперь ты ${updatedPlayer.level} уровня!` });
       }
     } else if (newPlayerHealth <= 0) {
       setPlayer({ ...player, health: stats.maxHealth, coins: Math.max(0, player.coins - 50) });
@@ -431,110 +329,107 @@ export default function Index() {
     }
   };
 
-  const findPvpOpponent = () => {
-    if (!player) return;
+  const sendMessage = () => {
+    if (!chatInput.trim() || !player) return;
+
+    const parts = chatInput.trim().split(' ');
     
-    const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]')
-      .filter((p: Player) => p.username !== player.username);
-    
-    if (allPlayers.length === 0) {
-      toast({ title: "Нет игроков", description: "Пока нет других игроков для PvP", variant: "destructive" });
+    if (parts[0].toLowerCase() === '/send' && parts.length === 3) {
+      const targetUser = parts[1];
+      const amount = parseInt(parts[2]);
+      
+      if (isNaN(amount) || amount <= 0) {
+        toast({ title: "Ошибка", description: "Неверная сумма", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      if (player.coins < amount) {
+        toast({ title: "Ошибка", description: "Недостаточно монет", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+      const targetPlayer = allPlayers.find((p: Player) => p.username === targetUser);
+
+      if (!targetPlayer) {
+        toast({ title: "Ошибка", description: "Игрок не найден", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      const updatedPlayers = allPlayers.map((p: Player) => {
+        if (p.username === player.username) return { ...p, coins: p.coins - amount };
+        if (p.username === targetUser) return { ...p, coins: p.coins + amount };
+        return p;
+      });
+
+      localStorage.setItem('lyriumAllPlayers', JSON.stringify(updatedPlayers));
+      setPlayer({ ...player, coins: player.coins - amount });
+
+      const sysMsg: ChatMessage = {
+        id: Date.now(),
+        username: 'СИСТЕМА',
+        level: 0,
+        message: `💸 ${player.username} отправил ${amount} монет игроку ${targetUser}`,
+        timestamp: new Date().toLocaleTimeString('ru-RU'),
+        isVIP: false
+      };
+
+      setChatMessages([...chatMessages, sysMsg]);
+      toast({ title: "Успех", description: `Отправлено ${amount} монет` });
+      setChatInput('');
       return;
     }
 
-    const opponent = allPlayers[Math.floor(Math.random() * allPlayers.length)];
-    setPvpOpponent(opponent);
-    
-    const playerStats = getTotalStats();
-    setPvpPlayerHealth(playerStats.maxHealth);
-    
-    const opponentInventory = JSON.parse(localStorage.getItem('lyriumInventory') || '[]');
-    const opponentEquipped = opponentInventory.filter((i: InventoryItem) => i.equipped);
-    const opponentBonuses = {
-      attack: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.attackBonus, 0),
-      defense: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.defenseBonus, 0),
-      health: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.healthBonus, 0)
-    };
-    
-    setPvpOpponentHealth(opponent.maxHealth + opponentBonuses.health);
-    setInPvp(true);
-    setPvpLog([`⚔️ PvP битва началась! ${player.username} VS ${opponent.username}`]);
-  };
-
-  const pvpAttack = () => {
-    if (!pvpOpponent || !player) return;
-
-    const playerStats = getTotalStats();
-    const opponentInventory = JSON.parse(localStorage.getItem('lyriumInventory') || '[]');
-    const opponentEquipped = opponentInventory.filter((i: InventoryItem) => i.equipped);
-    const opponentBonuses = {
-      attack: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.attackBonus, 0),
-      defense: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.defenseBonus, 0),
-      health: opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.healthBonus, 0)
-    };
-
-    const opponentTotalAttack = pvpOpponent.attack + (pvpOpponent.magicPower || 0) + (pvpOpponent.rangeBonus || 0) + opponentBonuses.attack;
-    const opponentTotalDefense = pvpOpponent.defense + opponentBonuses.defense;
-
-    const playerDamage = Math.max(1, playerStats.attack - opponentTotalDefense);
-    const opponentDamage = Math.max(1, opponentTotalAttack - playerStats.defense);
-
-    const newOpponentHealth = pvpOpponentHealth - playerDamage;
-    const newPlayerHealth = pvpPlayerHealth - opponentDamage;
-
-    setPvpLog(prev => [...prev, 
-      `💥 ${player.username} нанес ${playerDamage} урона!`,
-      `🩸 ${pvpOpponent.username} нанес ${opponentDamage} урона!`
-    ]);
-
-    if (newOpponentHealth <= 0) {
-      const coinsReward = Math.max(10, pvpOpponent.level * 5);
-      const expReward = pvpOpponent.level * 30;
-      const newExp = player.experience + expReward;
-      const levelUp = newExp >= player.level * 100;
-
-      setPlayer({
-        ...player,
-        coins: player.coins + coinsReward,
-        experience: levelUp ? newExp - player.level * 100 : newExp,
-        level: levelUp ? player.level + 1 : player.level,
-        pvpWins: player.pvpWins + 1,
-        weeklyScore: player.weeklyScore + expReward
-      });
-
-      setPvpLog(prev => [...prev, `🏆 ПОБЕДА! +${expReward} опыта, +${coinsReward} монет!`]);
-      setInPvp(false);
-      setPvpOpponent(null);
+    if (parts[0].toLowerCase() === '/promo' && parts.length === 2) {
+      const code = parts[1];
       
-      if (levelUp) {
-        toast({ title: "🎊 НОВЫЙ УРОВЕНЬ!", description: `Поздравляем! Теперь ты ${player.level + 1} уровня!` });
+      const usedPromos = JSON.parse(localStorage.getItem(`lyriumUsedPromos_${player.username}`) || '[]');
+      if (usedPromos.includes(code)) {
+        toast({ title: "Ошибка", description: "Промокод уже использован", variant: "destructive" });
+        setChatInput('');
+        return;
       }
-    } else if (newPlayerHealth <= 0) {
-      setPlayer({ 
-        ...player, 
-        health: playerStats.maxHealth, 
-        coins: Math.max(0, player.coins - 20),
-        pvpLosses: player.pvpLosses + 1
-      });
-      setPvpLog(prev => [...prev, '💀 ПОРАЖЕНИЕ! -20 монет']);
-      setInPvp(false);
-      setPvpOpponent(null);
-    } else {
-      setPvpOpponentHealth(newOpponentHealth);
-      setPvpPlayerHealth(newPlayerHealth);
-    }
-  };
 
-  const sendMessage = () => {
-    if (!chatInput.trim() || !player) return;
+      const promo = PROMOCODES[code];
+      if (!promo) {
+        toast({ title: "Ошибка", description: "Неверный промокод", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      const updated = { ...player };
+      if (promo.coins) updated.coins += promo.coins;
+      if (promo.vip) updated.isVIP = true;
+
+      setPlayer(updated);
+      usedPromos.push(code);
+      localStorage.setItem(`lyriumUsedPromos_${player.username}`, JSON.stringify(usedPromos));
+
+      const sysMsg: ChatMessage = {
+        id: Date.now(),
+        username: 'СИСТЕМА',
+        level: 0,
+        message: `🎁 ${player.username} активировал промокод!${promo.coins ? ` +${promo.coins} монет` : ''}${promo.vip ? ' +VIP' : ''}`,
+        timestamp: new Date().toLocaleTimeString('ru-RU'),
+        isVIP: false
+      };
+
+      setChatMessages([...chatMessages, sysMsg]);
+      toast({ title: "Промокод активирован!", description: promo.vip ? "VIP статус!" : `+${promo.coins} монет` });
+      setChatInput('');
+      return;
+    }
 
     const newMessage: ChatMessage = {
       id: Date.now(),
       username: player.username,
-      race: player.race,
       level: player.level,
       message: chatInput,
-      timestamp: new Date().toLocaleTimeString('ru-RU')
+      timestamp: new Date().toLocaleTimeString('ru-RU'),
+      isVIP: player.isVIP
     };
 
     setChatMessages([...chatMessages, newMessage]);
@@ -544,42 +439,18 @@ export default function Index() {
   const buyItem = (item: ShopItem) => {
     if (!player) return;
 
-    if (item.pricePremium > 0) {
-      if (player.premiumCurrency < item.pricePremium) {
-        setShowDonatInfo(true);
-        return;
-      }
-      setPlayer({ ...player, premiumCurrency: player.premiumCurrency - item.pricePremium });
-    } else if (item.priceGems > 0) {
-      if (player.gems < item.priceGems) {
-        toast({ title: "Недостаточно кристаллов!", variant: "destructive" });
-        return;
-      }
-      setPlayer({ ...player, gems: player.gems - item.priceGems });
-    } else {
-      if (player.coins < item.priceCoins) {
-        toast({ title: "Недостаточно монет!", variant: "destructive" });
-        return;
-      }
-      setPlayer({ ...player, coins: player.coins - item.priceCoins });
+    if (player.coins < item.priceCoins) {
+      toast({ title: "Недостаточно монет!", variant: "destructive" });
+      return;
     }
+    setPlayer({ ...player, coins: player.coins - item.priceCoins });
 
-    if (item.category === 'currency') {
-      if (item.name.includes('Монет')) {
-        const amount = parseInt(item.name);
-        setPlayer({ ...player, coins: player.coins + amount });
-      } else if (item.name.includes('Кристаллов')) {
-        const amount = parseInt(item.name);
-        setPlayer({ ...player, gems: player.gems + amount });
-      }
+    const invItem: InventoryItem = { ...item, quantity: 1, equipped: false };
+    const existing = inventory.find(i => i.id === item.id);
+    if (existing) {
+      setInventory(inventory.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      const invItem: InventoryItem = { ...item, quantity: 1, equipped: false };
-      const existing = inventory.find(i => i.id === item.id);
-      if (existing) {
-        setInventory(inventory.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
-      } else {
-        setInventory([...inventory, invItem]);
-      }
+      setInventory([...inventory, invItem]);
     }
 
     toast({ title: "Куплено!", description: item.name });
@@ -613,7 +484,6 @@ export default function Index() {
       case 'rare': return 'border-blue-500';
       case 'epic': return 'border-purple-500';
       case 'legendary': return 'border-yellow-500';
-      case 'premium': return 'border-pink-500';
       default: return 'border-border';
     }
   };
@@ -644,7 +514,7 @@ export default function Index() {
         <Dialog open={showAuth}>
           <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-sm">
             <DialogHeader>
-              <DialogTitle className="text-center text-3xl text-purple-400">
+              <DialogTitle className="text-center text-2xl md:text-3xl text-purple-400">
                 {isLogin ? '🎮 ВХОД' : '✨ РЕГИСТРАЦИЯ'}
               </DialogTitle>
               <DialogDescription className="text-center text-purple-300">
@@ -657,22 +527,22 @@ export default function Index() {
                 placeholder="Никнейм"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="font-pixel bg-slate-900 border-purple-500 text-purple-100"
+                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-10 md:h-12 text-sm md:text-base"
               />
               <Input
                 type="password"
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="font-pixel bg-slate-900 border-purple-500 text-purple-100"
+                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-10 md:h-12 text-sm md:text-base"
               />
-              <Button onClick={handleAuth} className="w-full bg-purple-600 hover:bg-purple-700 font-pixel">
+              <Button onClick={handleAuth} className="w-full bg-purple-600 hover:bg-purple-700 font-pixel h-10 md:h-12 text-sm md:text-base">
                 {isLogin ? 'ВОЙТИ' : 'ДАЛЕЕ'}
               </Button>
               <Button
                 onClick={() => setIsLogin(!isLogin)}
                 variant="outline"
-                className="w-full font-pixel border-purple-500 text-purple-300"
+                className="w-full font-pixel border-purple-500 text-purple-300 h-10 md:h-12 text-sm md:text-base"
               >
                 {isLogin ? 'Создать аккаунт' : 'Уже есть аккаунт'}
               </Button>
@@ -683,45 +553,25 @@ export default function Index() {
         <Dialog open={showRaceSelect} onOpenChange={setShowRaceSelect}>
           <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-center text-2xl text-purple-400">ВЫБЕРИ РАСУ</DialogTitle>
+              <DialogTitle className="text-center text-xl md:text-2xl text-purple-400">ВЫБЕРИ РАСУ</DialogTitle>
             </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               {RACES.map(race => (
                 <Card
                   key={race.id}
                   onClick={() => selectRace(race.id)}
-                  className="bg-slate-900 border-2 border-purple-500 hover:border-purple-300 cursor-pointer p-4 transition-all hover:scale-105"
+                  className="bg-slate-900 border-2 border-purple-500 hover:border-purple-300 cursor-pointer p-3 md:p-4 transition-all hover:scale-105"
                 >
                   <div className="text-center">
-                    <div className="text-5xl mb-2">{race.icon}</div>
-                    <h3 className="text-lg font-bold text-purple-300 mb-1">{race.name}</h3>
-                    {race.price > 0 && <Badge className="bg-pink-600 mb-2">🔥 {race.price}₽</Badge>}
-                    <p className="text-xs text-purple-400 mb-2">{race.desc}</p>
-                    <p className="text-[10px] text-purple-500">{race.bonuses}</p>
+                    <div className="text-4xl md:text-5xl mb-2">{race.icon}</div>
+                    <h3 className="text-sm md:text-lg font-bold text-purple-300 mb-1">{race.name}</h3>
+                    {race.price > 0 && <Badge className="bg-pink-600 mb-2 text-xs">🔥 {race.price}₽</Badge>}
+                    <p className="text-[10px] md:text-xs text-purple-400 mb-2">{race.desc}</p>
+                    <p className="text-[9px] md:text-[10px] text-purple-500">{race.bonuses}</p>
                   </div>
                 </Card>
               ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={showDonatInfo} onOpenChange={setShowDonatInfo}>
-          <DialogContent className="bg-slate-800 border-2 border-pink-500 font-pixel">
-            <DialogHeader>
-              <DialogTitle className="text-center text-2xl text-pink-400">💳 ДОНАТ</DialogTitle>
-              <DialogDescription className="text-center text-pink-300">
-                Для покупки напиши в Telegram
-              </DialogDescription>
-            </DialogHeader>
-            <div className="text-center space-y-4">
-              <div className="text-xl text-pink-300">@LyriumMine</div>
-              <Button
-                onClick={() => window.open('https://t.me/LyriumMine', '_blank')}
-                className="w-full bg-pink-600 hover:bg-pink-700"
-              >
-                ОТКРЫТЬ ЧАТ
-              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -731,81 +581,78 @@ export default function Index() {
 
   if (!player) return null;
 
-  const categories = ['all', 'weapon', 'armor', 'potion', 'magic', 'pet', 'premium'];
+  const categories = ['all', 'weapon', 'armor', 'potion'];
   const filteredItems = selectedCategory === 'all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i => i.category === selectedCategory);
   const stats = getTotalStats();
   const leaderboard = getLeaderboard();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 font-pixel text-purple-100">
-      <div className="container mx-auto px-4 py-6">
-        <header className="text-center mb-6">
-          <h1 className="text-4xl mb-3 text-purple-400 flex items-center justify-center gap-2">
-            <span className="text-4xl">{player.avatar}</span>
+      <div className="container mx-auto px-2 md:px-4 py-3 md:py-6">
+        <header className="text-center mb-3 md:mb-6">
+          <h1 className="text-2xl md:text-4xl mb-2 md:mb-3 text-purple-400 flex items-center justify-center gap-2">
+            <span className="text-2xl md:text-4xl">{player.avatar}</span>
             LYRIUM
+            {player.isVIP && <Badge className="bg-pink-600 text-[9px] md:text-xs">⭐ VIP</Badge>}
           </h1>
-          <div className="flex justify-center gap-2 flex-wrap text-xs mb-3">
-            <Badge className={`${getRaceColor(player.race)} bg-slate-800 border-2`}>
-              {player.race.toUpperCase()} Ур.{player.level}
+          <div className="flex justify-center gap-1 md:gap-2 flex-wrap text-[9px] md:text-xs mb-2">
+            <Badge className={`${getRaceColor(player.race)} bg-slate-800 border`}>
+              Ур.{player.level}
             </Badge>
             <Badge className="bg-yellow-700"><Icon name="Coins" size={12} /> {player.coins}</Badge>
-            <Badge className="bg-blue-700"><Icon name="Gem" size={12} /> {player.gems}</Badge>
-            {player.premiumCurrency > 0 && <Badge className="bg-pink-700">💎 {player.premiumCurrency}</Badge>}
             <Badge variant="outline" className="border-red-500 text-red-400">⚔️ {stats.attack}</Badge>
             <Badge variant="outline" className="border-blue-500 text-blue-400">🛡️ {stats.defense}</Badge>
             <Badge variant="outline" className="border-green-500 text-green-400">
               ❤️ {player.health}/{stats.maxHealth}
             </Badge>
-            <Badge variant="outline" className="border-yellow-500 text-yellow-400">
-              🏆 {player.pvpWins}W/{player.pvpLosses}L
-            </Badge>
           </div>
-          <div className="max-w-md mx-auto">
+          <div className="max-w-md mx-auto px-2">
             <Progress value={(player.experience / (player.level * 100)) * 100} className="h-2" />
-            <div className="text-[10px] text-purple-400 mt-1">
+            <div className="text-[9px] md:text-[10px] text-purple-400 mt-1">
               Опыт: {player.experience}/{player.level * 100}
             </div>
           </div>
         </header>
 
         <Tabs defaultValue="battle" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-6 bg-slate-800 text-[10px]">
-            <TabsTrigger value="battle">⚔️ PvE</TabsTrigger>
-            <TabsTrigger value="pvp">🔥 PvP</TabsTrigger>
-            <TabsTrigger value="shop">🏪 Магазин</TabsTrigger>
-            <TabsTrigger value="inventory">🎒 Снаряжение</TabsTrigger>
-            <TabsTrigger value="leaderboard">🏆 Топ</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6 mb-3 md:mb-6 bg-slate-800 text-[8px] md:text-[10px] h-auto">
+            <TabsTrigger value="battle" className="py-2 md:py-3">⚔️<span className="hidden md:inline"> PvE</span></TabsTrigger>
+            <TabsTrigger value="pvp" className="py-2 md:py-3">🔥<span className="hidden md:inline"> PvP</span></TabsTrigger>
+            <TabsTrigger value="shop" className="py-2 md:py-3">🏪<span className="hidden md:inline"> Магазин</span></TabsTrigger>
+            <TabsTrigger value="inventory" className="py-2 md:py-3">🎒<span className="hidden md:inline"> Снаряжение</span></TabsTrigger>
+            <TabsTrigger value="chat" className="py-2 md:py-3">💬<span className="hidden md:inline"> Чат</span></TabsTrigger>
+            <TabsTrigger value="leaderboard" className="py-2 md:py-3">🏆<span className="hidden md:inline"> Топ</span></TabsTrigger>
           </TabsList>
 
           <TabsContent value="battle">
-            <Card className="bg-slate-800 border-2 border-purple-500 p-6">
+            <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
               {!inBattle ? (
                 <div className="text-center">
-                  <div className="text-6xl mb-4">⚔️</div>
-                  <h2 className="text-2xl mb-4 text-purple-300">Найти противника</h2>
-                  <Button onClick={generateMob} className="bg-purple-600 hover:bg-purple-700 text-lg px-8">
+                  <div className="text-4xl md:text-6xl mb-3 md:mb-4">⚔️</div>
+                  <h2 className="text-lg md:text-2xl mb-3 md:mb-4 text-purple-300">Найти противника</h2>
+                  <Button onClick={generateMob} className="bg-purple-600 hover:bg-purple-700 text-sm md:text-lg px-6 md:px-8 h-10 md:h-12">
                     ИСКАТЬ БОЙ
                   </Button>
                 </div>
               ) : currentMob && (
                 <div>
-                  <div className="text-center mb-4">
-                    <div className="text-6xl mb-2">{currentMob.icon}</div>
-                    <h3 className="text-xl text-purple-300 mb-2">{currentMob.name}</h3>
-                    {currentMob.isBoss && <Badge className="bg-red-600 mb-2">👑 БОСС (НЕ АТАКУЕТ)</Badge>}
-                    <Progress value={(currentMob.health / currentMob.maxHealth) * 100} className="h-4 mb-2" />
-                    <div className="text-sm text-purple-400">
-                      ❤️ {currentMob.health}/{currentMob.maxHealth} | ⚔️ {currentMob.attack} | 🛡️ {currentMob.defense}
+                  <div className="text-center mb-3 md:mb-4">
+                    <div className="text-4xl md:text-6xl mb-2">{currentMob.icon}</div>
+                    <h3 className="text-base md:text-xl text-purple-300 mb-2">{currentMob.name}</h3>
+                    {currentMob.isBoss && <Badge className="bg-red-600 mb-2 text-xs">👑 БОСС</Badge>}
+                    <Progress value={(currentMob.health / currentMob.maxHealth) * 100} className="h-3 md:h-4 mb-2" />
+                    <div className="text-xs md:text-sm text-purple-400">
+                      ❤️ {currentMob.health}/{currentMob.maxHealth}
                     </div>
                   </div>
 
-                  <ScrollArea className="h-32 bg-slate-900 p-3 mb-4 border border-purple-500">
+                  <ScrollArea className="h-20 md:h-32 bg-slate-900 p-2 md:p-3 mb-3 md:mb-4 border border-purple-500">
                     {battleLog.map((log, i) => (
-                      <div key={i} className="text-xs text-purple-300 mb-1">{log}</div>
+                      <div key={i} className="text-[9px] md:text-xs text-purple-300 mb-1">{log}</div>
                     ))}
                   </ScrollArea>
 
-                  <Button onClick={attackMob} className="w-full bg-red-600 hover:bg-red-700 text-lg">
+                  <Button onClick={attackMob} className="w-full bg-red-600 hover:bg-red-700 text-sm md:text-lg h-10 md:h-12">
                     ⚔️ АТАКОВАТЬ
                   </Button>
                 </div>
@@ -814,92 +661,52 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="pvp">
-            <Card className="bg-slate-800 border-2 border-purple-500 p-6">
-              {!inPvp ? (
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🔥</div>
-                  <h2 className="text-2xl mb-4 text-purple-300">PvP Арена</h2>
-                  <p className="text-sm text-purple-400 mb-4">
-                    Сражайся с другими игроками!<br/>
-                    Твоя экипировка учитывается в бою
-                  </p>
-                  <Button onClick={findPvpOpponent} className="bg-red-600 hover:bg-red-700 text-lg px-8">
-                    НАЙТИ ПРОТИВНИКА
-                  </Button>
-                </div>
-              ) : pvpOpponent && (
-                <div>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="text-center p-3 bg-slate-900 border border-green-500 rounded">
-                      <div className="text-4xl mb-2">{player.avatar}</div>
-                      <h3 className="text-sm font-bold text-green-400 mb-1">{player.username}</h3>
-                      <Badge className="text-[10px] mb-2">Ур.{player.level}</Badge>
-                      <Progress value={(pvpPlayerHealth / stats.maxHealth) * 100} className="h-3 mb-1" />
-                      <div className="text-[10px] text-green-400">
-                        ❤️ {pvpPlayerHealth}/{stats.maxHealth}
-                      </div>
-                    </div>
-
-                    <div className="text-center p-3 bg-slate-900 border border-red-500 rounded">
-                      <div className="text-4xl mb-2">{pvpOpponent.avatar}</div>
-                      <h3 className="text-sm font-bold text-red-400 mb-1">{pvpOpponent.username}</h3>
-                      <Badge className="text-[10px] mb-2">Ур.{pvpOpponent.level}</Badge>
-                      <Progress value={(pvpOpponentHealth / pvpOpponent.maxHealth) * 100} className="h-3 mb-1" />
-                      <div className="text-[10px] text-red-400">
-                        ❤️ {pvpOpponentHealth}/{pvpOpponent.maxHealth}
-                      </div>
-                    </div>
-                  </div>
-
-                  <ScrollArea className="h-32 bg-slate-900 p-3 mb-4 border border-purple-500">
-                    {pvpLog.map((log, i) => (
-                      <div key={i} className="text-xs text-purple-300 mb-1">{log}</div>
-                    ))}
-                  </ScrollArea>
-
-                  <Button onClick={pvpAttack} className="w-full bg-red-600 hover:bg-red-700 text-lg">
-                    🔥 АТАКОВАТЬ
-                  </Button>
-                </div>
-              )}
+            <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
+              <div className="text-center">
+                <div className="text-4xl md:text-6xl mb-3 md:mb-4">🔥</div>
+                <h2 className="text-lg md:text-2xl mb-3 md:mb-4 text-purple-300">PvP Арена</h2>
+                <p className="text-xs md:text-sm text-purple-400 mb-4">
+                  Используй команду /duel [ник] [ставка] в чате
+                </p>
+              </div>
             </Card>
           </TabsContent>
 
           <TabsContent value="shop">
-            <div className="mb-4 flex gap-2 flex-wrap justify-center">
+            <div className="mb-2 md:mb-4 flex gap-1 md:gap-2 flex-wrap justify-center">
               {categories.map(cat => (
                 <Badge
                   key={cat}
                   variant={selectedCategory === cat ? "default" : "outline"}
-                  className="cursor-pointer text-xs"
+                  className="cursor-pointer text-[9px] md:text-xs py-1 md:py-2 px-2 md:px-3"
                   onClick={() => setSelectedCategory(cat)}
                 >
-                  {cat === 'premium' ? '🔥 ДОНАТ' : cat.toUpperCase()}
+                  {cat.toUpperCase()}
                 </Badge>
               ))}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
               {filteredItems.map(item => (
-                <Card key={item.id} className={`bg-slate-800 border-2 ${getRarityColor(item.rarity)} p-3`}>
+                <Card key={item.id} className={`bg-slate-800 border-2 ${getRarityColor(item.rarity)} p-2 md:p-3`}>
                   <div className="text-center">
-                    <div className="text-3xl mb-2">{item.icon}</div>
-                    <h3 className="text-[9px] font-bold mb-1 text-purple-300">{item.name}</h3>
-                    <p className="text-[8px] text-purple-400 mb-2">{item.description}</p>
+                    <div className="text-2xl md:text-3xl mb-1 md:mb-2">{item.icon}</div>
+                    <h3 className="text-[8px] md:text-[9px] font-bold mb-1 text-purple-300">{item.name}</h3>
+                    <p className="text-[7px] md:text-[8px] text-purple-400 mb-1">{item.description}</p>
                     
                     {(item.attackBonus > 0 || item.defenseBonus > 0 || item.healthBonus > 0) && (
-                      <div className="flex justify-center gap-1 mb-2 text-[8px]">
-                        {item.attackBonus > 0 && <Badge className="text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
-                        {item.defenseBonus > 0 && <Badge className="text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
-                        {item.healthBonus > 0 && <Badge className="text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
+                      <div className="flex justify-center gap-1 mb-1 text-[7px] md:text-[8px]">
+                        {item.attackBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
+                        {item.defenseBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
+                        {item.healthBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
                       </div>
                     )}
 
-                    <div className="text-xs mb-2 text-purple-300">
-                      {item.pricePremium > 0 ? `💎 ${item.pricePremium}₽` : item.priceGems > 0 ? `💎 ${item.priceGems}` : `🪙 ${item.priceCoins}`}
+                    <div className="text-[9px] md:text-xs mb-1 md:mb-2 text-purple-300">
+                      🪙 {item.priceCoins}
                     </div>
 
-                    <Button onClick={() => buyItem(item)} size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-[9px] h-6">
+                    <Button onClick={() => buyItem(item)} size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-[8px] md:text-[9px] h-7 md:h-8">
                       КУПИТЬ
                     </Button>
                   </div>
@@ -910,36 +717,36 @@ export default function Index() {
 
           <TabsContent value="inventory">
             {inventory.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🎒</div>
-                <p className="text-purple-400">Инвентарь пуст</p>
+              <div className="text-center py-6 md:py-12">
+                <div className="text-4xl md:text-6xl mb-3 md:mb-4">🎒</div>
+                <p className="text-purple-400 text-sm md:text-base">Инвентарь пуст</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
                 {inventory.map(item => (
-                  <Card key={item.id} className={`bg-slate-800 border-2 ${item.equipped ? 'border-green-500' : getRarityColor(item.rarity)} p-3`}>
+                  <Card key={item.id} className={`bg-slate-800 border-2 ${item.equipped ? 'border-green-500' : getRarityColor(item.rarity)} p-2 md:p-3`}>
                     <div className="text-center">
-                      <div className="text-3xl mb-2">{item.icon}</div>
-                      <h3 className="text-[9px] font-bold text-purple-300 mb-1">{item.name}</h3>
-                      <Badge className="text-[8px] bg-slate-700 mb-2">x{item.quantity}</Badge>
+                      <div className="text-2xl md:text-3xl mb-1 md:mb-2">{item.icon}</div>
+                      <h3 className="text-[8px] md:text-[9px] font-bold text-purple-300 mb-1">{item.name}</h3>
+                      <Badge className="text-[7px] md:text-[8px] bg-slate-700 mb-1">x{item.quantity}</Badge>
                       
                       {(item.attackBonus > 0 || item.defenseBonus > 0 || item.healthBonus > 0) && (
-                        <div className="flex justify-center gap-1 mb-2 text-[8px]">
-                          {item.attackBonus > 0 && <Badge className="text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
-                          {item.defenseBonus > 0 && <Badge className="text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
-                          {item.healthBonus > 0 && <Badge className="text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
+                        <div className="flex justify-center gap-1 mb-1 text-[7px] md:text-[8px]">
+                          {item.attackBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
+                          {item.defenseBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
+                          {item.healthBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
                         </div>
                       )}
 
                       {item.category === 'potion' ? (
-                        <Button onClick={() => usePotion(item)} size="sm" className="w-full bg-green-600 hover:bg-green-700 text-[9px] h-6">
+                        <Button onClick={() => usePotion(item)} size="sm" className="w-full bg-green-600 hover:bg-green-700 text-[8px] md:text-[9px] h-7 md:h-8">
                           ИСПОЛЬЗОВАТЬ
                         </Button>
                       ) : (
                         <Button 
                           onClick={() => toggleEquip(item.id)} 
                           size="sm" 
-                          className={`w-full text-[9px] h-6 ${item.equipped ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          className={`w-full text-[8px] md:text-[9px] h-7 md:h-8 ${item.equipped ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
                         >
                           {item.equipped ? 'СНЯТЬ' : 'НАДЕТЬ'}
                         </Button>
@@ -951,19 +758,59 @@ export default function Index() {
             )}
           </TabsContent>
 
+          <TabsContent value="chat">
+            <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
+              <h2 className="text-base md:text-2xl mb-2 md:mb-4 text-purple-300 text-center">💬 Глобальный чат</h2>
+              
+              <div className="mb-2 md:mb-4 p-2 md:p-3 bg-slate-900 border border-purple-600 rounded text-[8px] md:text-xs text-purple-300">
+                <div className="font-bold mb-1">Команды:</div>
+                <div>/send [ник] [сумма] - передать монеты</div>
+                <div>/promo [код] - активировать промокод</div>
+                <div>/duel [ник] [ставка] - вызвать на дуэль</div>
+                <div>/trade [ник] - открыть обмен</div>
+                <div>/sell [id] [цена] [ник] - продать предмет</div>
+              </div>
+
+              <ScrollArea className="h-48 md:h-80 bg-slate-900 p-2 md:p-3 mb-2 md:mb-4 border border-purple-500">
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} className="mb-2 pb-2 border-b border-purple-800">
+                    <div className="flex items-center gap-1 md:gap-2 mb-1">
+                      <span className="font-bold text-[9px] md:text-xs text-purple-400">
+                        {msg.username}
+                      </span>
+                      {msg.isVIP && <Badge className="bg-pink-600 text-[7px] md:text-[8px]">VIP</Badge>}
+                      <Badge className="text-[7px] md:text-[8px]">Ур.{msg.level}</Badge>
+                      <span className="text-[7px] md:text-[9px] text-purple-500">{msg.timestamp}</span>
+                    </div>
+                    <div className="text-[8px] md:text-xs text-purple-200">{msg.message}</div>
+                  </div>
+                ))}
+              </ScrollArea>
+
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Сообщение или команда..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  className="font-pixel bg-slate-900 border-purple-500 text-purple-100 text-xs md:text-sm h-9 md:h-12"
+                />
+                <Button onClick={sendMessage} className="bg-purple-600 hover:bg-purple-700 h-9 md:h-12 px-3 md:px-6">
+                  <Icon name="Send" size={14} />
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="leaderboard">
-            <Card className="bg-slate-800 border-2 border-purple-500 p-6">
-              <h2 className="text-2xl mb-4 text-purple-300 text-center">🏆 ТОП-10 ИГРОКОВ</h2>
-              <p className="text-xs text-purple-400 text-center mb-6">
-                Награды еженедельно:<br/>
-                🥇 1 место: +1000 монет | 🥈 2 место: +500 монет | 🥉 3 место: +250 монет
-              </p>
+            <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
+              <h2 className="text-lg md:text-2xl mb-3 md:mb-4 text-purple-300 text-center">🏆 ТОП-10 ИГРОКОВ</h2>
 
               <div className="space-y-2">
                 {leaderboard.map((p, index) => (
                   <div 
                     key={p.username} 
-                    className={`p-3 rounded border-2 ${
+                    className={`p-2 md:p-3 rounded border-2 ${
                       index === 0 ? 'bg-yellow-900 border-yellow-500' : 
                       index === 1 ? 'bg-gray-700 border-gray-400' : 
                       index === 2 ? 'bg-orange-900 border-orange-600' : 
@@ -971,22 +818,21 @@ export default function Index() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="text-2xl">
+                      <div className="flex items-center gap-2 md:gap-3">
+                        <div className="text-lg md:text-2xl">
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
                         </div>
-                        <div className="text-3xl">{p.avatar}</div>
+                        <div className="text-2xl md:text-3xl">{p.avatar}</div>
                         <div>
-                          <div className="font-bold text-purple-200">{p.username}</div>
-                          <div className="text-xs text-purple-400">
-                            {p.race.toUpperCase()} | 🏆 {p.pvpWins}W/{p.pvpLosses}L
+                          <div className="font-bold text-xs md:text-base text-purple-200">{p.username}</div>
+                          <div className="text-[9px] md:text-xs text-purple-400">
+                            {p.race?.toUpperCase() || 'N/A'}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <Badge className="bg-purple-700 mb-1">Ур.{p.level}</Badge>
-                        <div className="text-[10px] text-purple-400">Опыт: {p.experience}</div>
-                        <div className="text-[10px] text-yellow-400">Очков: {p.weeklyScore}</div>
+                        <Badge className="bg-purple-700 mb-1 text-[9px] md:text-xs">Ур.{p.level}</Badge>
+                        <div className="text-[8px] md:text-[10px] text-purple-400">Опыт: {p.experience}</div>
                       </div>
                     </div>
                   </div>
@@ -996,26 +842,6 @@ export default function Index() {
           </TabsContent>
         </Tabs>
       </div>
-
-      <Dialog open={showDonatInfo} onOpenChange={setShowDonatInfo}>
-        <DialogContent className="bg-slate-800 border-2 border-pink-500 font-pixel">
-          <DialogHeader>
-            <DialogTitle className="text-center text-2xl text-pink-400">💳 ДОНАТ</DialogTitle>
-            <DialogDescription className="text-center text-pink-300">
-              Для покупки напиши в Telegram
-            </DialogDescription>
-          </DialogHeader>
-          <div className="text-center space-y-4">
-            <div className="text-xl text-pink-300">@LyriumMine</div>
-            <Button
-              onClick={() => window.open('https://t.me/LyriumMine', '_blank')}
-              className="w-full bg-pink-600 hover:bg-pink-700"
-            >
-              ОТКРЫТЬ ЧАТ
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
