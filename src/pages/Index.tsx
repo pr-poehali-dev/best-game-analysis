@@ -69,6 +69,21 @@ interface InventoryItem extends ShopItem {
   equipped: boolean;
 }
 
+interface MarketItem extends InventoryItem {
+  sellerId: string;
+  sellerName: string;
+  price: number;
+}
+
+interface TradeRequest {
+  from: string;
+  to: string;
+  timestamp: number;
+  fromItems: InventoryItem[];
+  toItems: InventoryItem[];
+  status: 'pending' | 'accepted' | 'cancelled';
+}
+
 const RACES = [
   { id: 'warrior', name: 'Воин', icon: '⚔️', desc: 'Мощная атака', bonuses: '+10 Атака, +5 Защита', price: 0 },
   { id: 'mage', name: 'Маг', icon: '🧙', desc: 'Магия', bonuses: '+15 Магия', price: 0 },
@@ -81,6 +96,8 @@ const SHOP_ITEMS: ShopItem[] = [
   {id: 2, name: 'Железный меч', icon: '⚔️', category: 'weapon', rarity: 'common', priceCoins: 120, attackBonus: 12, defenseBonus: 0, healthBonus: 0, description: 'Надежный клинок'},
   {id: 3, name: 'Кожаная броня', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 60, attackBonus: 0, defenseBonus: 5, healthBonus: 0, description: 'Базовая защита'},
   {id: 4, name: 'Малое зелье', icon: '🧪', category: 'potion', rarity: 'common', priceCoins: 20, attackBonus: 0, defenseBonus: 0, healthBonus: 20, description: '+20 HP'},
+  {id: 5, name: 'Алмазный меч', icon: '💎', category: 'weapon', rarity: 'epic', priceCoins: 500, attackBonus: 30, defenseBonus: 0, healthBonus: 0, description: 'Мощное оружие'},
+  {id: 6, name: 'Драконья броня', icon: '🐉', category: 'armor', rarity: 'legendary', priceCoins: 1000, attackBonus: 0, defenseBonus: 40, healthBonus: 50, description: 'Легендарная защита'},
 ];
 
 const PROMOCODES: Record<string, { coins?: number; vip?: boolean }> = {
@@ -102,11 +119,17 @@ export default function Index() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
+  const [tradeRequest, setTradeRequest] = useState<TradeRequest | null>(null);
+  const [tradeItems, setTradeItems] = useState<{ my: number[]; their: number[] }>({ my: [], their: [] });
+  const [sellItemId, setSellItemId] = useState<number | null>(null);
+  const [sellPrice, setSellPrice] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     const savedPlayer = localStorage.getItem('lyriumPlayer');
     const savedChat = localStorage.getItem('lyriumChat');
+    const savedMarket = localStorage.getItem('lyriumMarket');
     
     if (savedPlayer) {
       const parsed = JSON.parse(savedPlayer);
@@ -121,6 +144,7 @@ export default function Index() {
     }
     
     if (savedChat) setChatMessages(JSON.parse(savedChat));
+    if (savedMarket) setMarketItems(JSON.parse(savedMarket));
   }, []);
 
   useEffect(() => {
@@ -147,6 +171,10 @@ export default function Index() {
     localStorage.setItem('lyriumChat', JSON.stringify(chatMessages));
   }, [chatMessages]);
 
+  useEffect(() => {
+    localStorage.setItem('lyriumMarket', JSON.stringify(marketItems));
+  }, [marketItems]);
+
   const handleAuth = () => {
     if (!username || !password) {
       toast({ title: "Ошибка", description: "Заполни все поля", variant: "destructive" });
@@ -155,9 +183,9 @@ export default function Index() {
 
     if (isLogin) {
       const savedPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
-      const existingPlayer = savedPlayers.find((p: Player) => p.username === username);
+      const existingPlayer = savedPlayers.find((p: Player) => p.username === username && p.password === password);
       
-      if (!existingPlayer || existingPlayer.password !== password) {
+      if (!existingPlayer) {
         toast({ title: "Ошибка", description: "Неверный логин или пароль", variant: "destructive" });
         return;
       }
@@ -233,63 +261,67 @@ export default function Index() {
     const mobData = {
       id: Date.now(),
       name: isBoss ? `БОСС Ур.${mobLevel}` : `Моб Ур.${mobLevel}`,
-      icon: isBoss ? '👑' : ['🟢', '👹', '💀'][Math.floor(Math.random() * 3)],
+      icon: isBoss ? '👹' : ['🧟', '🦇', '🐺', '🕷️'][Math.floor(Math.random() * 4)],
       level: mobLevel,
       isBoss,
-      health: isBoss ? mobLevel * 200 : mobLevel * 20,
-      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 20,
-      attack: isBoss ? 0 : mobLevel * 3,
-      defense: isBoss ? mobLevel * 5 : mobLevel * 2,
-      coinsReward: isBoss ? mobLevel * 30 : Math.max(2, Math.floor(mobLevel * 1.5))
+      health: isBoss ? mobLevel * 200 : mobLevel * 50,
+      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 50,
+      attack: mobLevel * 8,
+      defense: mobLevel * 4,
+      coinsReward: Math.max(2, mobLevel * 1.5)
     };
 
     setCurrentMob(mobData);
     setInBattle(true);
-    setBattleLog([`⚔️ Началась битва с ${mobData.name}!`]);
+    setBattleLog([`⚔️ Противник появился: ${mobData.name}!`]);
   };
 
   const getTotalStats = () => {
-    if (!player) return { attack: 0, defense: 0, maxHealth: 0 };
-    const bonuses = {
-      attack: inventory.filter(i => i.equipped).reduce((sum, i) => sum + i.attackBonus, 0),
-      defense: inventory.filter(i => i.equipped).reduce((sum, i) => sum + i.defenseBonus, 0),
-      health: inventory.filter(i => i.equipped).reduce((sum, i) => sum + i.healthBonus, 0)
-    };
+    if (!player) return { attack: 0, defense: 0, maxHealth: 100 };
+    
+    const equipped = inventory.filter(i => i.equipped);
+    const attackBonus = equipped.reduce((sum, i) => sum + i.attackBonus, 0);
+    const defenseBonus = equipped.reduce((sum, i) => sum + i.defenseBonus, 0);
+    const healthBonus = equipped.reduce((sum, i) => sum + i.healthBonus, 0);
+
     return {
-      attack: player.attack + bonuses.attack,
-      defense: player.defense + bonuses.defense,
-      maxHealth: player.maxHealth + bonuses.health
+      attack: player.attack + attackBonus,
+      defense: player.defense + defenseBonus,
+      maxHealth: player.maxHealth + healthBonus
     };
   };
 
   const attackMob = () => {
-    if (!currentMob || !player) return;
+    if (!player || !currentMob) return;
 
     const stats = getTotalStats();
     const playerDamage = Math.max(1, stats.attack - currentMob.defense);
-    const mobDamage = currentMob.isBoss ? 0 : Math.max(0, currentMob.attack - stats.defense);
+    const mobDamage = currentMob.isBoss ? 0 : Math.max(1, currentMob.attack - stats.defense);
 
     const newMobHealth = currentMob.health - playerDamage;
     const newPlayerHealth = player.health - mobDamage;
 
-    setBattleLog(prev => [...prev, 
-      `💥 Ты нанес ${playerDamage} урона!`,
-      currentMob.isBoss ? '🛡️ Босс не атакует!' : (mobDamage > 0 ? `🩸 Получено ${mobDamage} урона!` : '🛡️ Блок!')
-    ]);
+    setBattleLog(prev => [...prev, `⚔️ Ты нанес ${playerDamage} урона!`]);
+    if (!currentMob.isBoss && mobDamage > 0) {
+      setBattleLog(prev => [...prev, `💥 Получено ${mobDamage} урона!`]);
+    }
 
     if (newMobHealth <= 0) {
-      const exp = currentMob.level * (currentMob.isBoss ? 100 : 20);
+      const exp = currentMob.level * (currentMob.isBoss ? 50 : 10);
+      const coins = currentMob.isBoss ? currentMob.level * 30 : currentMob.coinsReward;
+      const gems = currentMob.isBoss ? currentMob.level * 3 : 0;
+      
       const newExp = player.experience + exp;
       const levelUp = newExp >= player.level * 100;
-
       const updatedPlayer = {
         ...player,
-        coins: player.coins + currentMob.coinsReward,
         experience: levelUp ? newExp - player.level * 100 : newExp,
         level: levelUp ? player.level + 1 : player.level,
-        weeklyScore: player.weeklyScore + exp
+        coins: player.coins + coins,
+        gems: player.gems + gems,
+        weeklyScore: player.weeklyScore + (currentMob.isBoss ? 100 : 10)
       };
-
+      
       setPlayer(updatedPlayer);
 
       if (currentMob.isBoss && Math.random() < 0.1) {
@@ -311,7 +343,7 @@ export default function Index() {
         setBattleLog(prev => [...prev, `✨ ВЫПАЛ АРТЕФАКТ!`]);
       }
 
-      setBattleLog(prev => [...prev, `🎉 ПОБЕДА! +${exp} опыта, +${currentMob.coinsReward} монет`]);
+      setBattleLog(prev => [...prev, `🎉 ПОБЕДА! +${exp} опыта, +${coins} монет${gems > 0 ? `, +${gems} кристаллов` : ''}`]);
       setInBattle(false);
       setCurrentMob(null);
       
@@ -334,7 +366,7 @@ export default function Index() {
 
     const parts = chatInput.trim().split(' ');
     
-    if (parts[0].toLowerCase() === '/send' && parts.length === 3) {
+    if (parts[0].toLowerCase() === '/дб' && parts.length === 3) {
       const targetUser = parts[1];
       const amount = parseInt(parts[2]);
       
@@ -423,6 +455,132 @@ export default function Index() {
       return;
     }
 
+    if (parts[0].toLowerCase() === '/duel' && parts.length === 3) {
+      const targetUser = parts[1];
+      const bet = parseInt(parts[2]);
+
+      if (isNaN(bet) || bet <= 0) {
+        toast({ title: "Ошибка", description: "Неверная ставка", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      if (player.coins < bet) {
+        toast({ title: "Ошибка", description: "Недостаточно монет", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+      const opponent = allPlayers.find((p: Player) => p.username === targetUser);
+
+      if (!opponent) {
+        toast({ title: "Ошибка", description: "Игрок не найден", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      if (opponent.coins < bet) {
+        toast({ title: "Ошибка", description: "У противника недостаточно монет", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      const playerStats = getTotalStats();
+      const opponentInv = JSON.parse(localStorage.getItem(`lyriumInventory_${opponent.username}`) || '[]');
+      const opponentEquipped = opponentInv.filter((i: InventoryItem) => i.equipped);
+      const opponentAttack = opponent.attack + opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.attackBonus, 0);
+      const opponentDefense = opponent.defense + opponentEquipped.reduce((sum: number, i: InventoryItem) => sum + i.defenseBonus, 0);
+
+      const playerPower = playerStats.attack + playerStats.defense;
+      const opponentPower = opponentAttack + opponentDefense;
+      const totalPower = playerPower + opponentPower;
+      const winChance = playerPower / totalPower;
+
+      const won = Math.random() < winChance;
+
+      const updatedPlayers = allPlayers.map((p: Player) => {
+        if (p.username === player.username) {
+          return {
+            ...p,
+            coins: won ? p.coins + bet : p.coins - bet,
+            pvpWins: won ? p.pvpWins + 1 : p.pvpWins,
+            pvpLosses: won ? p.pvpLosses : p.pvpLosses + 1,
+            weeklyScore: won ? p.weeklyScore + 50 : p.weeklyScore,
+            experience: p.experience + 30
+          };
+        }
+        if (p.username === targetUser) {
+          return {
+            ...p,
+            coins: won ? p.coins - bet : p.coins + bet,
+            pvpWins: won ? p.pvpWins : p.pvpWins + 1,
+            pvpLosses: won ? p.pvpLosses + 1 : p.pvpLosses
+          };
+        }
+        return p;
+      });
+
+      localStorage.setItem('lyriumAllPlayers', JSON.stringify(updatedPlayers));
+      setPlayer(updatedPlayers.find((p: Player) => p.username === player.username));
+
+      const sysMsg: ChatMessage = {
+        id: Date.now(),
+        username: 'АРЕНА',
+        level: 0,
+        message: `⚔️ Дуэль: ${player.username} VS ${targetUser} (ставка ${bet} монет) - ${won ? `Победил ${player.username}!` : `Победил ${targetUser}!`}`,
+        timestamp: new Date().toLocaleTimeString('ru-RU'),
+        isVIP: false
+      };
+
+      setChatMessages([...chatMessages, sysMsg]);
+      toast({ 
+        title: won ? "🏆 ПОБЕДА!" : "💀 ПОРАЖЕНИЕ", 
+        description: won ? `+${bet} монет` : `-${bet} монет` 
+      });
+      setChatInput('');
+      return;
+    }
+
+    if (parts[0].toLowerCase() === '/trade' && parts.length === 2) {
+      const targetUser = parts[1];
+      
+      const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+      const targetPlayer = allPlayers.find((p: Player) => p.username === targetUser);
+
+      if (!targetPlayer) {
+        toast({ title: "Ошибка", description: "Игрок не найден", variant: "destructive" });
+        setChatInput('');
+        return;
+      }
+
+      const newTrade: TradeRequest = {
+        from: player.username,
+        to: targetUser,
+        timestamp: Date.now(),
+        fromItems: [],
+        toItems: [],
+        status: 'pending'
+      };
+
+      setTradeRequest(newTrade);
+      setTradeItems({ my: [], their: [] });
+
+      const sysMsg: ChatMessage = {
+        id: Date.now(),
+        username: 'СИСТЕМА',
+        level: 0,
+        message: `🤝 ${player.username} отправил запрос на трейд игроку ${targetUser}`,
+        timestamp: new Date().toLocaleTimeString('ru-RU'),
+        isVIP: false
+      };
+
+      setChatMessages([...chatMessages, sysMsg]);
+      toast({ title: "Запрос отправлен", description: "Ждем ответа игрока" });
+      setChatInput('');
+      return;
+    }
+
     const newMessage: ChatMessage = {
       id: Date.now(),
       username: player.username,
@@ -478,6 +636,68 @@ export default function Index() {
     toast({ title: "Использовано!", description: `+${item.healthBonus} HP` });
   };
 
+  const sellToMarket = (itemId: number, price: number) => {
+    if (!player) return;
+
+    const item = inventory.find(i => i.id === itemId);
+    if (!item || item.quantity < 1) return;
+
+    const marketItem: MarketItem = {
+      ...item,
+      sellerId: player.username,
+      sellerName: player.username,
+      price,
+      quantity: 1
+    };
+
+    setMarketItems([...marketItems, marketItem]);
+
+    if (item.quantity > 1) {
+      setInventory(inventory.map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i));
+    } else {
+      setInventory(inventory.filter(i => i.id !== itemId));
+    }
+
+    toast({ title: "Выставлено на продажу!", description: `${item.name} за ${price} монет` });
+    setSellItemId(null);
+    setSellPrice('');
+  };
+
+  const buyFromMarket = (marketItem: MarketItem, index: number) => {
+    if (!player) return;
+
+    if (player.coins < marketItem.price) {
+      toast({ title: "Недостаточно монет!", variant: "destructive" });
+      return;
+    }
+
+    if (marketItem.sellerId === player.username) {
+      toast({ title: "Это твой товар!", variant: "destructive" });
+      return;
+    }
+
+    setPlayer({ ...player, coins: player.coins - marketItem.price });
+
+    const allPlayers = JSON.parse(localStorage.getItem('lyriumAllPlayers') || '[]');
+    const updatedPlayers = allPlayers.map((p: Player) => 
+      p.username === marketItem.sellerName ? { ...p, coins: p.coins + marketItem.price } : p
+    );
+    localStorage.setItem('lyriumAllPlayers', JSON.stringify(updatedPlayers));
+
+    const invItem: InventoryItem = { ...marketItem, quantity: 1, equipped: false };
+    const existing = inventory.find(i => i.id === marketItem.id && i.name === marketItem.name);
+    if (existing) {
+      setInventory(inventory.map(i => 
+        (i.id === marketItem.id && i.name === marketItem.name) ? { ...i, quantity: i.quantity + 1 } : i
+      ));
+    } else {
+      setInventory([...inventory, invItem]);
+    }
+
+    setMarketItems(marketItems.filter((_, i) => i !== index));
+    toast({ title: "Куплено!", description: marketItem.name });
+  };
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'common': return 'border-gray-500';
@@ -527,24 +747,29 @@ export default function Index() {
                 placeholder="Никнейм"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-10 md:h-12 text-sm md:text-base"
+                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-12 text-base touch-manipulation"
               />
               <Input
                 type="password"
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-10 md:h-12 text-sm md:text-base"
+                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-12 text-base touch-manipulation"
               />
-              <Button onClick={handleAuth} className="w-full bg-purple-600 hover:bg-purple-700 font-pixel h-10 md:h-12 text-sm md:text-base">
-                {isLogin ? 'ВОЙТИ' : 'ДАЛЕЕ'}
-              </Button>
-              <Button
-                onClick={() => setIsLogin(!isLogin)}
-                variant="outline"
-                className="w-full font-pixel border-purple-500 text-purple-300 h-10 md:h-12 text-sm md:text-base"
+
+              <Button 
+                onClick={handleAuth} 
+                className="w-full bg-purple-600 hover:bg-purple-700 font-pixel h-12 text-base touch-manipulation"
               >
-                {isLogin ? 'Создать аккаунт' : 'Уже есть аккаунт'}
+                {isLogin ? 'ВОЙТИ' : 'ЗАРЕГИСТРИРОВАТЬСЯ'}
+              </Button>
+
+              <Button 
+                variant="ghost" 
+                onClick={() => setIsLogin(!isLogin)}
+                className="w-full text-purple-300 hover:text-purple-100 font-pixel h-12 touch-manipulation"
+              >
+                {isLogin ? 'Нет аккаунта? Зарегистрируйся' : 'Есть аккаунт? Войди'}
               </Button>
             </div>
           </DialogContent>
@@ -553,22 +778,20 @@ export default function Index() {
         <Dialog open={showRaceSelect} onOpenChange={setShowRaceSelect}>
           <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl md:text-2xl text-purple-400">ВЫБЕРИ РАСУ</DialogTitle>
+              <DialogTitle className="text-center text-2xl text-purple-400">Выбери расу</DialogTitle>
             </DialogHeader>
-
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              {RACES.map(race => (
-                <Card
+            <div className="grid grid-cols-2 gap-3">
+              {RACES.filter(r => r.price === 0).map(race => (
+                <Card 
                   key={race.id}
+                  className="bg-slate-900 border-2 border-purple-500 p-4 cursor-pointer hover:border-purple-300 transition-all touch-manipulation"
                   onClick={() => selectRace(race.id)}
-                  className="bg-slate-900 border-2 border-purple-500 hover:border-purple-300 cursor-pointer p-3 md:p-4 transition-all hover:scale-105"
                 >
                   <div className="text-center">
-                    <div className="text-4xl md:text-5xl mb-2">{race.icon}</div>
-                    <h3 className="text-sm md:text-lg font-bold text-purple-300 mb-1">{race.name}</h3>
-                    {race.price > 0 && <Badge className="bg-pink-600 mb-2 text-xs">🔥 {race.price}₽</Badge>}
-                    <p className="text-[10px] md:text-xs text-purple-400 mb-2">{race.desc}</p>
-                    <p className="text-[9px] md:text-[10px] text-purple-500">{race.bonuses}</p>
+                    <div className="text-5xl mb-2">{race.icon}</div>
+                    <h3 className="text-xl text-purple-300 mb-2">{race.name}</h3>
+                    <p className="text-xs text-purple-400 mb-2">{race.desc}</p>
+                    <p className="text-xs text-purple-500">{race.bonuses}</p>
                   </div>
                 </Card>
               ))}
@@ -581,30 +804,31 @@ export default function Index() {
 
   if (!player) return null;
 
-  const categories = ['all', 'weapon', 'armor', 'potion'];
-  const filteredItems = selectedCategory === 'all' ? SHOP_ITEMS : SHOP_ITEMS.filter(i => i.category === selectedCategory);
   const stats = getTotalStats();
-  const leaderboard = getLeaderboard();
+  const categories = ['all', 'weapon', 'armor', 'potion'];
+  const filteredItems = selectedCategory === 'all' 
+    ? SHOP_ITEMS 
+    : SHOP_ITEMS.filter(item => item.category === selectedCategory);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 font-pixel text-purple-100">
-      <div className="container mx-auto px-2 md:px-4 py-3 md:py-6">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 text-purple-100 font-pixel p-2 md:p-4">
+      <div className="max-w-7xl mx-auto">
         <header className="text-center mb-3 md:mb-6">
-          <h1 className="text-2xl md:text-4xl mb-2 md:mb-3 text-purple-400 flex items-center justify-center gap-2">
-            <span className="text-2xl md:text-4xl">{player.avatar}</span>
-            LYRIUM
-            {player.isVIP && <Badge className="bg-pink-600 text-[9px] md:text-xs">⭐ VIP</Badge>}
-          </h1>
-          <div className="flex justify-center gap-1 md:gap-2 flex-wrap text-[9px] md:text-xs mb-2">
-            <Badge className={`${getRaceColor(player.race)} bg-slate-800 border`}>
+          <h1 className="text-3xl md:text-5xl mb-2 md:mb-4 text-purple-400">⚔️ LYRIUM ⚔️</h1>
+          <div className="flex flex-wrap items-center justify-center gap-1 md:gap-2 text-xs md:text-sm mb-2">
+            <Badge className={`${getRaceColor(player.race)} bg-opacity-20 text-base md:text-lg`}>
+              {player.avatar} {player.username}
+            </Badge>
+            <Badge className="bg-purple-700 text-xs md:text-sm">
               Ур.{player.level}
             </Badge>
-            <Badge className="bg-yellow-700"><Icon name="Coins" size={12} /> {player.coins}</Badge>
-            <Badge variant="outline" className="border-red-500 text-red-400">⚔️ {stats.attack}</Badge>
-            <Badge variant="outline" className="border-blue-500 text-blue-400">🛡️ {stats.defense}</Badge>
-            <Badge variant="outline" className="border-green-500 text-green-400">
+            <Badge className="bg-yellow-700 text-xs md:text-sm"><Icon name="Coins" size={12} /> {player.coins}</Badge>
+            <Badge variant="outline" className="border-red-500 text-red-400 text-xs md:text-sm">⚔️ {stats.attack}</Badge>
+            <Badge variant="outline" className="border-blue-500 text-blue-400 text-xs md:text-sm">🛡️ {stats.defense}</Badge>
+            <Badge variant="outline" className="border-green-500 text-green-400 text-xs md:text-sm">
               ❤️ {player.health}/{stats.maxHealth}
             </Badge>
+            {player.isVIP && <Badge className="bg-gradient-to-r from-yellow-600 to-purple-600">👑 VIP</Badge>}
           </div>
           <div className="max-w-md mx-auto px-2">
             <Progress value={(player.experience / (player.level * 100)) * 100} className="h-2" />
@@ -615,13 +839,13 @@ export default function Index() {
         </header>
 
         <Tabs defaultValue="battle" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-3 md:mb-6 bg-slate-800 text-[8px] md:text-[10px] h-auto">
-            <TabsTrigger value="battle" className="py-2 md:py-3">⚔️<span className="hidden md:inline"> PvE</span></TabsTrigger>
-            <TabsTrigger value="pvp" className="py-2 md:py-3">🔥<span className="hidden md:inline"> PvP</span></TabsTrigger>
-            <TabsTrigger value="shop" className="py-2 md:py-3">🏪<span className="hidden md:inline"> Магазин</span></TabsTrigger>
-            <TabsTrigger value="inventory" className="py-2 md:py-3">🎒<span className="hidden md:inline"> Снаряжение</span></TabsTrigger>
-            <TabsTrigger value="chat" className="py-2 md:py-3">💬<span className="hidden md:inline"> Чат</span></TabsTrigger>
-            <TabsTrigger value="leaderboard" className="py-2 md:py-3">🏆<span className="hidden md:inline"> Топ</span></TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6 mb-3 md:mb-6 bg-slate-800 text-[10px] md:text-xs h-auto">
+            <TabsTrigger value="battle" className="py-3 md:py-3 touch-manipulation">⚔️<span className="hidden sm:inline"> PvE</span></TabsTrigger>
+            <TabsTrigger value="shop" className="py-3 md:py-3 touch-manipulation">🏪<span className="hidden sm:inline"> Магазин</span></TabsTrigger>
+            <TabsTrigger value="inventory" className="py-3 md:py-3 touch-manipulation">🎒<span className="hidden sm:inline"> Инвентарь</span></TabsTrigger>
+            <TabsTrigger value="market" className="py-3 md:py-3 touch-manipulation">🛒<span className="hidden sm:inline"> Рынок</span></TabsTrigger>
+            <TabsTrigger value="chat" className="py-3 md:py-3 touch-manipulation">💬<span className="hidden sm:inline"> Чат</span></TabsTrigger>
+            <TabsTrigger value="leaderboard" className="py-3 md:py-3 touch-manipulation">🏆<span className="hidden sm:inline"> Топ</span></TabsTrigger>
           </TabsList>
 
           <TabsContent value="battle">
@@ -630,7 +854,10 @@ export default function Index() {
                 <div className="text-center">
                   <div className="text-4xl md:text-6xl mb-3 md:mb-4">⚔️</div>
                   <h2 className="text-lg md:text-2xl mb-3 md:mb-4 text-purple-300">Найти противника</h2>
-                  <Button onClick={generateMob} className="bg-purple-600 hover:bg-purple-700 text-sm md:text-lg px-6 md:px-8 h-10 md:h-12">
+                  <Button 
+                    onClick={generateMob} 
+                    className="bg-purple-600 hover:bg-purple-700 text-base md:text-lg px-8 py-6 md:px-8 md:py-6 touch-manipulation"
+                  >
                     ИСКАТЬ БОЙ
                   </Button>
                 </div>
@@ -646,29 +873,20 @@ export default function Index() {
                     </div>
                   </div>
 
-                  <ScrollArea className="h-20 md:h-32 bg-slate-900 p-2 md:p-3 mb-3 md:mb-4 border border-purple-500">
+                  <ScrollArea className="h-24 md:h-32 bg-slate-900 p-2 md:p-3 mb-3 md:mb-4 border border-purple-500">
                     {battleLog.map((log, i) => (
-                      <div key={i} className="text-[9px] md:text-xs text-purple-300 mb-1">{log}</div>
+                      <div key={i} className="text-[10px] md:text-xs text-purple-300 mb-1">{log}</div>
                     ))}
                   </ScrollArea>
 
-                  <Button onClick={attackMob} className="w-full bg-red-600 hover:bg-red-700 text-sm md:text-lg h-10 md:h-12">
+                  <Button 
+                    onClick={attackMob} 
+                    className="w-full bg-red-600 hover:bg-red-700 text-base md:text-lg py-6 md:py-6 touch-manipulation"
+                  >
                     ⚔️ АТАКОВАТЬ
                   </Button>
                 </div>
               )}
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="pvp">
-            <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
-              <div className="text-center">
-                <div className="text-4xl md:text-6xl mb-3 md:mb-4">🔥</div>
-                <h2 className="text-lg md:text-2xl mb-3 md:mb-4 text-purple-300">PvP Арена</h2>
-                <p className="text-xs md:text-sm text-purple-400 mb-4">
-                  Используй команду /duel [ник] [ставка] в чате
-                </p>
-              </div>
             </Card>
           </TabsContent>
 
@@ -678,7 +896,7 @@ export default function Index() {
                 <Badge
                   key={cat}
                   variant={selectedCategory === cat ? "default" : "outline"}
-                  className="cursor-pointer text-[9px] md:text-xs py-1 md:py-2 px-2 md:px-3"
+                  className="cursor-pointer text-[10px] md:text-xs py-2 md:py-2 px-3 md:px-3 touch-manipulation"
                   onClick={() => setSelectedCategory(cat)}
                 >
                   {cat.toUpperCase()}
@@ -691,22 +909,25 @@ export default function Index() {
                 <Card key={item.id} className={`bg-slate-800 border-2 ${getRarityColor(item.rarity)} p-2 md:p-3`}>
                   <div className="text-center">
                     <div className="text-2xl md:text-3xl mb-1 md:mb-2">{item.icon}</div>
-                    <h3 className="text-[8px] md:text-[9px] font-bold mb-1 text-purple-300">{item.name}</h3>
-                    <p className="text-[7px] md:text-[8px] text-purple-400 mb-1">{item.description}</p>
+                    <h3 className="text-[9px] md:text-[10px] font-bold mb-1 text-purple-300">{item.name}</h3>
+                    <p className="text-[8px] md:text-[9px] text-purple-400 mb-1">{item.description}</p>
                     
                     {(item.attackBonus > 0 || item.defenseBonus > 0 || item.healthBonus > 0) && (
-                      <div className="flex justify-center gap-1 mb-1 text-[7px] md:text-[8px]">
-                        {item.attackBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
-                        {item.defenseBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
-                        {item.healthBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
+                      <div className="flex justify-center gap-1 mb-1 text-[8px] md:text-[9px]">
+                        {item.attackBonus > 0 && <Badge className="text-[8px] md:text-[9px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
+                        {item.defenseBonus > 0 && <Badge className="text-[8px] md:text-[9px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
+                        {item.healthBonus > 0 && <Badge className="text-[8px] md:text-[9px] bg-green-700">+{item.healthBonus}❤️</Badge>}
                       </div>
                     )}
 
-                    <div className="text-[9px] md:text-xs mb-1 md:mb-2 text-purple-300">
+                    <div className="text-[10px] md:text-xs mb-1 md:mb-2 text-purple-300">
                       🪙 {item.priceCoins}
                     </div>
 
-                    <Button onClick={() => buyItem(item)} size="sm" className="w-full bg-purple-600 hover:bg-purple-700 text-[8px] md:text-[9px] h-7 md:h-8">
+                    <Button 
+                      onClick={() => buyItem(item)} 
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-[9px] md:text-[10px] py-4 md:py-4 touch-manipulation"
+                    >
                       КУПИТЬ
                     </Button>
                   </div>
@@ -727,30 +948,62 @@ export default function Index() {
                   <Card key={item.id} className={`bg-slate-800 border-2 ${item.equipped ? 'border-green-500' : getRarityColor(item.rarity)} p-2 md:p-3`}>
                     <div className="text-center">
                       <div className="text-2xl md:text-3xl mb-1 md:mb-2">{item.icon}</div>
-                      <h3 className="text-[8px] md:text-[9px] font-bold text-purple-300 mb-1">{item.name}</h3>
-                      <Badge className="text-[7px] md:text-[8px] bg-slate-700 mb-1">x{item.quantity}</Badge>
+                      <h3 className="text-[9px] md:text-[10px] font-bold text-purple-300 mb-1">{item.name}</h3>
+                      <Badge className="text-[8px] md:text-[9px] bg-slate-700 mb-1">x{item.quantity}</Badge>
                       
                       {(item.attackBonus > 0 || item.defenseBonus > 0 || item.healthBonus > 0) && (
-                        <div className="flex justify-center gap-1 mb-1 text-[7px] md:text-[8px]">
-                          {item.attackBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
-                          {item.defenseBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
-                          {item.healthBonus > 0 && <Badge className="text-[7px] md:text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
+                        <div className="flex justify-center gap-1 mb-1 text-[8px] md:text-[9px]">
+                          {item.attackBonus > 0 && <Badge className="text-[8px] md:text-[9px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
+                          {item.defenseBonus > 0 && <Badge className="text-[8px] md:text-[9px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
+                          {item.healthBonus > 0 && <Badge className="text-[8px] md:text-[9px] bg-green-700">+{item.healthBonus}❤️</Badge>}
                         </div>
                       )}
 
-                      {item.category === 'potion' ? (
-                        <Button onClick={() => usePotion(item)} size="sm" className="w-full bg-green-600 hover:bg-green-700 text-[8px] md:text-[9px] h-7 md:h-8">
-                          ИСПОЛЬЗОВАТЬ
-                        </Button>
-                      ) : (
-                        <Button 
-                          onClick={() => toggleEquip(item.id)} 
-                          size="sm" 
-                          className={`w-full text-[8px] md:text-[9px] h-7 md:h-8 ${item.equipped ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
-                          {item.equipped ? 'СНЯТЬ' : 'НАДЕТЬ'}
-                        </Button>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {item.category === 'potion' ? (
+                          <Button 
+                            onClick={() => usePotion(item)} 
+                            className="w-full bg-green-600 hover:bg-green-700 text-[9px] md:text-[10px] py-4 touch-manipulation"
+                          >
+                            ИСПОЛЬЗОВАТЬ
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={() => toggleEquip(item.id)} 
+                            className={`w-full text-[9px] md:text-[10px] py-4 touch-manipulation ${item.equipped ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          >
+                            {item.equipped ? 'СНЯТЬ' : 'НАДЕТЬ'}
+                          </Button>
+                        )}
+                        
+                        {sellItemId === item.id ? (
+                          <div className="flex gap-1">
+                            <Input
+                              type="number"
+                              placeholder="Цена"
+                              value={sellPrice}
+                              onChange={(e) => setSellPrice(e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                            <Button 
+                              onClick={() => {
+                                const price = parseInt(sellPrice);
+                                if (price > 0) sellToMarket(item.id, price);
+                              }}
+                              className="bg-blue-600 hover:bg-blue-700 text-[9px] py-4 px-2 touch-manipulation"
+                            >
+                              ОК
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button 
+                            onClick={() => setSellItemId(item.id)}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-[9px] md:text-[10px] py-4 touch-manipulation"
+                          >
+                            ПРОДАТЬ
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -758,85 +1011,139 @@ export default function Index() {
             )}
           </TabsContent>
 
+          <TabsContent value="market">
+            <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
+              <h2 className="text-xl md:text-2xl mb-4 text-purple-300 text-center">🛒 Торговая площадка</h2>
+              
+              {marketItems.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-purple-400">Нет товаров на продажу</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
+                  {marketItems.map((item, index) => (
+                    <Card key={index} className={`bg-slate-900 border-2 ${getRarityColor(item.rarity)} p-2 md:p-3`}>
+                      <div className="text-center">
+                        <div className="text-2xl md:text-3xl mb-1">{item.icon}</div>
+                        <h3 className="text-[9px] md:text-[10px] font-bold text-purple-300 mb-1">{item.name}</h3>
+                        <p className="text-[8px] text-purple-500 mb-1">Продавец: {item.sellerName}</p>
+                        
+                        {(item.attackBonus > 0 || item.defenseBonus > 0 || item.healthBonus > 0) && (
+                          <div className="flex justify-center gap-1 mb-1">
+                            {item.attackBonus > 0 && <Badge className="text-[8px] bg-red-700">+{item.attackBonus}⚔️</Badge>}
+                            {item.defenseBonus > 0 && <Badge className="text-[8px] bg-blue-700">+{item.defenseBonus}🛡️</Badge>}
+                            {item.healthBonus > 0 && <Badge className="text-[8px] bg-green-700">+{item.healthBonus}❤️</Badge>}
+                          </div>
+                        )}
+
+                        <div className="text-[10px] md:text-xs mb-2 text-yellow-400">
+                          💰 {item.price} монет
+                        </div>
+
+                        <Button 
+                          onClick={() => buyFromMarket(item, index)}
+                          className="w-full bg-green-600 hover:bg-green-700 text-[9px] md:text-[10px] py-4 touch-manipulation"
+                        >
+                          КУПИТЬ
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
           <TabsContent value="chat">
             <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
-              <h2 className="text-base md:text-2xl mb-2 md:mb-4 text-purple-300 text-center">💬 Глобальный чат</h2>
-              
-              <div className="mb-2 md:mb-4 p-2 md:p-3 bg-slate-900 border border-purple-600 rounded text-[8px] md:text-xs text-purple-300">
-                <div className="font-bold mb-1">Команды:</div>
-                <div>/send [ник] [сумма] - передать монеты</div>
-                <div>/promo [код] - активировать промокод</div>
-                <div>/duel [ник] [ставка] - вызвать на дуэль</div>
-                <div>/trade [ник] - открыть обмен</div>
-                <div>/sell [id] [цена] [ник] - продать предмет</div>
-              </div>
-
-              <ScrollArea className="h-48 md:h-80 bg-slate-900 p-2 md:p-3 mb-2 md:mb-4 border border-purple-500">
-                {chatMessages.map((msg) => (
-                  <div key={msg.id} className="mb-2 pb-2 border-b border-purple-800">
+              <ScrollArea className="h-64 md:h-96 mb-3 md:mb-4 p-2 md:p-3 bg-slate-900 border border-purple-500">
+                {chatMessages.map(msg => (
+                  <div key={msg.id} className="mb-2 md:mb-3">
                     <div className="flex items-center gap-1 md:gap-2 mb-1">
-                      <span className="font-bold text-[9px] md:text-xs text-purple-400">
-                        {msg.username}
+                      <Badge variant="outline" className="text-[8px] md:text-[9px]">
+                        Ур.{msg.level}
+                      </Badge>
+                      <span className={`text-[9px] md:text-[10px] font-bold ${msg.isVIP ? 'text-yellow-400' : 'text-purple-300'}`}>
+                        {msg.isVIP && '👑 '}{msg.username}
                       </span>
-                      {msg.isVIP && <Badge className="bg-pink-600 text-[7px] md:text-[8px]">VIP</Badge>}
-                      <Badge className="text-[7px] md:text-[8px]">Ур.{msg.level}</Badge>
-                      <span className="text-[7px] md:text-[9px] text-purple-500">{msg.timestamp}</span>
+                      <span className="text-[7px] md:text-[8px] text-purple-500">{msg.timestamp}</span>
                     </div>
-                    <div className="text-[8px] md:text-xs text-purple-200">{msg.message}</div>
+                    <p className="text-[9px] md:text-xs text-purple-100 ml-1 md:ml-2">{msg.message}</p>
                   </div>
                 ))}
               </ScrollArea>
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Сообщение или команда..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  className="font-pixel bg-slate-900 border-purple-500 text-purple-100 text-xs md:text-sm h-9 md:h-12"
-                />
-                <Button onClick={sendMessage} className="bg-purple-600 hover:bg-purple-700 h-9 md:h-12 px-3 md:px-6">
-                  <Icon name="Send" size={14} />
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Введи сообщение..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-12 touch-manipulation"
+                  />
+                  <Button 
+                    onClick={sendMessage} 
+                    className="bg-purple-600 hover:bg-purple-700 h-12 px-6 touch-manipulation"
+                  >
+                    ➤
+                  </Button>
+                </div>
+                
+                <div className="text-[8px] md:text-[9px] text-purple-400 space-y-1">
+                  <p>• /дб [ник] [сумма] - передать монеты</p>
+                  <p>• /promo [код] - активировать промокод</p>
+                  <p>• /duel [ник] [ставка] - дуэль на монеты</p>
+                  <p>• /trade [ник] - предложить обмен предметами</p>
+                </div>
               </div>
             </Card>
           </TabsContent>
 
           <TabsContent value="leaderboard">
             <Card className="bg-slate-800 border-2 border-purple-500 p-3 md:p-6">
-              <h2 className="text-lg md:text-2xl mb-3 md:mb-4 text-purple-300 text-center">🏆 ТОП-10 ИГРОКОВ</h2>
-
+              <h2 className="text-xl md:text-2xl mb-4 text-purple-300 text-center">🏆 Топ-10 игроков</h2>
+              
               <div className="space-y-2">
-                {leaderboard.map((p, index) => (
-                  <div 
-                    key={p.username} 
-                    className={`p-2 md:p-3 rounded border-2 ${
-                      index === 0 ? 'bg-yellow-900 border-yellow-500' : 
-                      index === 1 ? 'bg-gray-700 border-gray-400' : 
-                      index === 2 ? 'bg-orange-900 border-orange-600' : 
-                      'bg-slate-900 border-purple-600'
-                    }`}
-                  >
+                {getLeaderboard().map((p, index) => (
+                  <Card key={p.username} className="bg-slate-900 border border-purple-700 p-2 md:p-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 md:gap-3">
-                        <div className="text-lg md:text-2xl">
-                          {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                        <div className="text-xl md:text-2xl">
+                          {index === 0 && '🥇'}
+                          {index === 1 && '🥈'}
+                          {index === 2 && '🥉'}
+                          {index > 2 && `#${index + 1}`}
                         </div>
-                        <div className="text-2xl md:text-3xl">{p.avatar}</div>
                         <div>
-                          <div className="font-bold text-xs md:text-base text-purple-200">{p.username}</div>
-                          <div className="text-[9px] md:text-xs text-purple-400">
-                            {p.race?.toUpperCase() || 'N/A'}
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <span className={`${getRaceColor(p.race)} font-bold text-sm md:text-base`}>
+                              {p.avatar} {p.username}
+                            </span>
+                            {p.isVIP && <Badge className="bg-gradient-to-r from-yellow-600 to-purple-600 text-[7px] md:text-[8px]">VIP</Badge>}
+                          </div>
+                          <div className="flex gap-2 md:gap-3 text-[8px] md:text-[9px] text-purple-400">
+                            <span>Ур.{p.level}</span>
+                            <span>⚔️ W/L: {p.pvpWins}/{p.pvpLosses}</span>
+                            <span>🏆 {p.weeklyScore}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <Badge className="bg-purple-700 mb-1 text-[9px] md:text-xs">Ур.{p.level}</Badge>
-                        <div className="text-[8px] md:text-[10px] text-purple-400">Опыт: {p.experience}</div>
-                      </div>
+                      <Badge className="bg-purple-700 text-[9px] md:text-[10px]">
+                        {p.experience} XP
+                      </Badge>
                     </div>
-                  </div>
+                  </Card>
                 ))}
+              </div>
+
+              <div className="mt-4 md:mt-6 p-3 md:p-4 bg-slate-900 border border-purple-500 rounded">
+                <h3 className="text-sm md:text-base text-purple-300 mb-2">📅 Еженедельные награды:</h3>
+                <div className="text-[9px] md:text-xs text-purple-400 space-y-1">
+                  <p>🥇 1 место: +1000 монет</p>
+                  <p>🥈 2 место: +500 монет</p>
+                  <p>🥉 3 место: +250 монет</p>
+                </div>
               </div>
             </Card>
           </TabsContent>
