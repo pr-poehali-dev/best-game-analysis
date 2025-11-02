@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 interface Player {
   username: string;
   password: string;
-  race: 'warrior' | 'mage' | 'archer' | 'ghost';
+  race: 'warrior' | 'mage' | 'archer' | 'ghost' | 'demon' | 'angel' | 'dragon' | 'vampire';
   coins: number;
   gems: number;
   level: number;
@@ -88,16 +88,69 @@ const RACES = [
   { id: 'warrior', name: 'Воин', icon: '⚔️', desc: 'Мощная атака', bonuses: '+10 Атака, +5 Защита', price: 0 },
   { id: 'mage', name: 'Маг', icon: '🧙', desc: 'Магия', bonuses: '+15 Магия', price: 0 },
   { id: 'archer', name: 'Лучник', icon: '🏹', desc: 'Точность', bonuses: '+12 Точность', price: 0 },
-  { id: 'ghost', name: 'Призрак', icon: '👻', desc: 'Эксклюзив', bonuses: '+20 Магия', price: 100 }
+  { id: 'ghost', name: 'Призрак', icon: '👻', desc: 'Эксклюзив', bonuses: '+20 Магия, +10 Защита', price: 100 },
+  { id: 'demon', name: 'Демон', icon: '😈', desc: 'Темная сила', bonuses: '+25 Атака, +15 Защита', price: 200 },
+  { id: 'angel', name: 'Ангел', icon: '😇', desc: 'Святая сила', bonuses: '+20 Магия, +20 Защита', price: 250 },
+  { id: 'dragon', name: 'Дракон', icon: '🐉', desc: 'Огненная мощь', bonuses: '+30 Атака, +25 Защита, +50 HP', price: 500 },
+  { id: 'vampire', name: 'Вампир', icon: '🧛', desc: 'Ночной охотник', bonuses: '+22 Атака, +18 Защита, Вампиризм', price: 300 }
 ];
 
 const SHOP_ITEMS: ShopItem[] = [
   {id: 1, name: 'Деревянный меч', icon: '🗡️', category: 'weapon', rarity: 'common', priceCoins: 50, attackBonus: 5, defenseBonus: 0, healthBonus: 0, description: 'Простое оружие'},
   {id: 2, name: 'Железный меч', icon: '⚔️', category: 'weapon', rarity: 'common', priceCoins: 120, attackBonus: 12, defenseBonus: 0, healthBonus: 0, description: 'Надежный клинок'},
-  {id: 3, name: 'Кожаная броня', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 60, attackBonus: 0, defenseBonus: 5, healthBonus: 0, description: 'Базовая защита'},
-  {id: 4, name: 'Малое зелье', icon: '🧪', category: 'potion', rarity: 'common', priceCoins: 20, attackBonus: 0, defenseBonus: 0, healthBonus: 20, description: '+20 HP'},
+  {id: 3, name: 'Стальной меч', icon: '⚔️', category: 'weapon', rarity: 'rare', priceCoins: 250, attackBonus: 20, defenseBonus: 0, healthBonus: 0, description: 'Прочный клинок'},
+  {id: 4, name: 'Серебряный меч', icon: '⚔️', category: 'weapon', rarity: 'rare', priceCoins: 350, attackBonus: 25, defenseBonus: 0, healthBonus: 0, description: 'Против нечисти'},
   {id: 5, name: 'Алмазный меч', icon: '💎', category: 'weapon', rarity: 'epic', priceCoins: 500, attackBonus: 30, defenseBonus: 0, healthBonus: 0, description: 'Мощное оружие'},
-  {id: 6, name: 'Драконья броня', icon: '🐉', category: 'armor', rarity: 'legendary', priceCoins: 1000, attackBonus: 0, defenseBonus: 40, healthBonus: 50, description: 'Легендарная защита'},
+  {id: 6, name: 'Огненный меч', icon: '🔥', category: 'weapon', rarity: 'epic', priceCoins: 600, attackBonus: 35, defenseBonus: 0, healthBonus: 0, description: 'Горящий клинок'},
+  {id: 7, name: 'Ледяной меч', icon: '❄️', category: 'weapon', rarity: 'epic', priceCoins: 600, attackBonus: 35, defenseBonus: 5, healthBonus: 0, description: 'Замораживает врагов'},
+  {id: 8, name: 'Меч Экскалибур', icon: '⚜️', category: 'weapon', rarity: 'legendary', priceCoins: 1500, attackBonus: 50, defenseBonus: 10, healthBonus: 30, description: 'Легендарный меч'},
+  {id: 9, name: 'Кинжал', icon: '🔪', category: 'weapon', rarity: 'common', priceCoins: 80, attackBonus: 8, defenseBonus: 0, healthBonus: 0, description: 'Быстрое оружие'},
+  {id: 10, name: 'Отравленный кинжал', icon: '🗡️', category: 'weapon', rarity: 'rare', priceCoins: 280, attackBonus: 18, defenseBonus: 0, healthBonus: 0, description: 'Яд врагам'},
+  {id: 11, name: 'Боевой топор', icon: '🪓', category: 'weapon', rarity: 'common', priceCoins: 150, attackBonus: 15, defenseBonus: 0, healthBonus: 0, description: 'Тяжелый урон'},
+  {id: 12, name: 'Двуручный топор', icon: '🪓', category: 'weapon', rarity: 'rare', priceCoins: 320, attackBonus: 28, defenseBonus: 0, healthBonus: 0, description: 'Огромный урон'},
+  {id: 13, name: 'Лук', icon: '🏹', category: 'weapon', rarity: 'common', priceCoins: 100, attackBonus: 10, defenseBonus: 0, healthBonus: 0, description: 'Дальний бой'},
+  {id: 14, name: 'Арбалет', icon: '🏹', category: 'weapon', rarity: 'rare', priceCoins: 300, attackBonus: 22, defenseBonus: 0, healthBonus: 0, description: 'Мощный выстрел'},
+  {id: 15, name: 'Посох огня', icon: '🔥', category: 'weapon', rarity: 'epic', priceCoins: 550, attackBonus: 32, defenseBonus: 0, healthBonus: 0, description: 'Огненная магия'},
+  {id: 16, name: 'Посох льда', icon: '❄️', category: 'weapon', rarity: 'epic', priceCoins: 550, attackBonus: 32, defenseBonus: 0, healthBonus: 0, description: 'Ледяная магия'},
+  {id: 17, name: 'Копьё', icon: '🗡️', category: 'weapon', rarity: 'rare', priceCoins: 270, attackBonus: 20, defenseBonus: 3, healthBonus: 0, description: 'Длинное оружие'},
+  {id: 18, name: 'Трезубец', icon: '🔱', category: 'weapon', rarity: 'epic', priceCoins: 650, attackBonus: 38, defenseBonus: 5, healthBonus: 0, description: 'Морское оружие'},
+  {id: 19, name: 'Булава', icon: '🔨', category: 'weapon', rarity: 'common', priceCoins: 130, attackBonus: 13, defenseBonus: 0, healthBonus: 0, description: 'Дробящее оружие'},
+  {id: 20, name: 'Молот Тора', icon: '🔨', category: 'weapon', rarity: 'legendary', priceCoins: 2000, attackBonus: 60, defenseBonus: 15, healthBonus: 50, description: 'Божественная сила'},
+  {id: 21, name: 'Кожаная броня', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 60, attackBonus: 0, defenseBonus: 5, healthBonus: 0, description: 'Базовая защита'},
+  {id: 22, name: 'Кольчуга', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 140, attackBonus: 0, defenseBonus: 10, healthBonus: 0, description: 'Кольчужная защита'},
+  {id: 23, name: 'Железная броня', icon: '🛡️', category: 'armor', rarity: 'rare', priceCoins: 280, attackBonus: 0, defenseBonus: 18, healthBonus: 10, description: 'Прочная защита'},
+  {id: 24, name: 'Стальная броня', icon: '🛡️', category: 'armor', rarity: 'rare', priceCoins: 380, attackBonus: 0, defenseBonus: 22, healthBonus: 15, description: 'Крепкая защита'},
+  {id: 25, name: 'Алмазная броня', icon: '💎', category: 'armor', rarity: 'epic', priceCoins: 700, attackBonus: 0, defenseBonus: 30, healthBonus: 25, description: 'Блестящая защита'},
+  {id: 26, name: 'Драконья броня', icon: '🐉', category: 'armor', rarity: 'legendary', priceCoins: 1000, attackBonus: 0, defenseBonus: 40, healthBonus: 50, description: 'Легендарная защита'},
+  {id: 27, name: 'Демоническая броня', icon: '😈', category: 'armor', rarity: 'legendary', priceCoins: 1200, attackBonus: 5, defenseBonus: 38, healthBonus: 45, description: 'Темная защита'},
+  {id: 28, name: 'Ангельская броня', icon: '😇', category: 'armor', rarity: 'legendary', priceCoins: 1300, attackBonus: 0, defenseBonus: 45, healthBonus: 60, description: 'Святая защита'},
+  {id: 29, name: 'Щит', icon: '🛡️', category: 'armor', rarity: 'common', priceCoins: 90, attackBonus: 0, defenseBonus: 8, healthBonus: 0, description: 'Деревянный щит'},
+  {id: 30, name: 'Железный щит', icon: '🛡️', category: 'armor', rarity: 'rare', priceCoins: 250, attackBonus: 0, defenseBonus: 15, healthBonus: 0, description: 'Прочный щит'},
+  {id: 31, name: 'Рыцарский щит', icon: '🛡️', category: 'armor', rarity: 'epic', priceCoins: 500, attackBonus: 0, defenseBonus: 25, healthBonus: 20, description: 'Щит рыцаря'},
+  {id: 32, name: 'Шлем', icon: '⛑️', category: 'armor', rarity: 'common', priceCoins: 70, attackBonus: 0, defenseBonus: 6, healthBonus: 0, description: 'Защита головы'},
+  {id: 33, name: 'Железный шлем', icon: '⛑️', category: 'armor', rarity: 'rare', priceCoins: 200, attackBonus: 0, defenseBonus: 12, healthBonus: 5, description: 'Крепкий шлем'},
+  {id: 34, name: 'Королевская корона', icon: '👑', category: 'armor', rarity: 'legendary', priceCoins: 1500, attackBonus: 5, defenseBonus: 20, healthBonus: 40, description: 'Корона короля'},
+  {id: 35, name: 'Перчатки', icon: '🧤', category: 'armor', rarity: 'common', priceCoins: 50, attackBonus: 2, defenseBonus: 3, healthBonus: 0, description: 'Защита рук'},
+  {id: 36, name: 'Стальные перчатки', icon: '🧤', category: 'armor', rarity: 'rare', priceCoins: 180, attackBonus: 5, defenseBonus: 8, healthBonus: 0, description: 'Прочные перчатки'},
+  {id: 37, name: 'Сапоги', icon: '👢', category: 'armor', rarity: 'common', priceCoins: 60, attackBonus: 0, defenseBonus: 5, healthBonus: 0, description: 'Защита ног'},
+  {id: 38, name: 'Железные сапоги', icon: '👢', category: 'armor', rarity: 'rare', priceCoins: 190, attackBonus: 0, defenseBonus: 11, healthBonus: 8, description: 'Крепкие сапоги'},
+  {id: 39, name: 'Малое зелье', icon: '🧪', category: 'potion', rarity: 'common', priceCoins: 20, attackBonus: 0, defenseBonus: 0, healthBonus: 20, description: '+20 HP'},
+  {id: 40, name: 'Зелье здоровья', icon: '🧪', category: 'potion', rarity: 'common', priceCoins: 40, attackBonus: 0, defenseBonus: 0, healthBonus: 50, description: '+50 HP'},
+  {id: 41, name: 'Большое зелье', icon: '🧪', category: 'potion', rarity: 'rare', priceCoins: 80, attackBonus: 0, defenseBonus: 0, healthBonus: 100, description: '+100 HP'},
+  {id: 42, name: 'Мега зелье', icon: '🧪', category: 'potion', rarity: 'epic', priceCoins: 150, attackBonus: 0, defenseBonus: 0, healthBonus: 200, description: '+200 HP'},
+  {id: 43, name: 'Зелье силы', icon: '💪', category: 'potion', rarity: 'rare', priceCoins: 100, attackBonus: 10, defenseBonus: 0, healthBonus: 0, description: '+10 Атака (1 бой)'},
+  {id: 44, name: 'Зелье защиты', icon: '🛡️', category: 'potion', rarity: 'rare', priceCoins: 100, attackBonus: 0, defenseBonus: 10, healthBonus: 0, description: '+10 Защита (1 бой)'},
+  {id: 45, name: 'Эликсир жизни', icon: '💚', category: 'potion', rarity: 'legendary', priceCoins: 500, attackBonus: 0, defenseBonus: 0, healthBonus: 500, description: 'Полное HP'},
+  {id: 46, name: 'Амулет', icon: '📿', category: 'accessory', rarity: 'rare', priceCoins: 300, attackBonus: 5, defenseBonus: 5, healthBonus: 20, description: 'Магический амулет'},
+  {id: 47, name: 'Кольцо силы', icon: '💍', category: 'accessory', rarity: 'rare', priceCoins: 250, attackBonus: 8, defenseBonus: 0, healthBonus: 0, description: 'Кольцо воина'},
+  {id: 48, name: 'Кольцо защиты', icon: '💍', category: 'accessory', rarity: 'rare', priceCoins: 250, attackBonus: 0, defenseBonus: 12, healthBonus: 0, description: 'Магическая защита'},
+  {id: 49, name: 'Ожерелье', icon: '📿', category: 'accessory', rarity: 'epic', priceCoins: 600, attackBonus: 10, defenseBonus: 10, healthBonus: 30, description: 'Драгоценное'},
+  {id: 50, name: 'Руна силы', icon: '⚡', category: 'accessory', rarity: 'epic', priceCoins: 700, attackBonus: 15, defenseBonus: 5, healthBonus: 0, description: 'Древняя руна'},
+  {id: 51, name: 'Руна защиты', icon: '🔰', category: 'accessory', rarity: 'epic', priceCoins: 700, attackBonus: 0, defenseBonus: 20, healthBonus: 40, description: 'Магическая руна'},
+  {id: 52, name: 'Талисман удачи', icon: '🍀', category: 'accessory', rarity: 'legendary', priceCoins: 1500, attackBonus: 20, defenseBonus: 20, healthBonus: 50, description: 'Легендарный талисман'},
+  {id: 53, name: 'Крылья ангела', icon: '🪽', category: 'accessory', rarity: 'legendary', priceCoins: 2000, attackBonus: 15, defenseBonus: 25, healthBonus: 80, description: 'Божественные крылья'},
+  {id: 54, name: 'Книга заклинаний', icon: '📖', category: 'accessory', rarity: 'epic', priceCoins: 800, attackBonus: 25, defenseBonus: 0, healthBonus: 0, description: 'Магическая книга'},
+  {id: 55, name: 'Кристалл маны', icon: '💎', category: 'accessory', rarity: 'rare', priceCoins: 400, attackBonus: 12, defenseBonus: 0, healthBonus: 20, description: 'Усиливает магию'},
 ];
 
 const PROMOCODES: Record<string, { coins?: number; vip?: boolean }> = {
@@ -214,14 +267,25 @@ export default function Index() {
 
   const selectRace = (raceId: string) => {
     const race = RACES.find(r => r.id === raceId);
-    if (!race || race.price > 0) return;
+    if (!race) return;
+    
+    if (race.price > 0 && (!player || player.gems < race.price)) {
+      toast({ title: "Недостаточно кристаллов!", description: `Нужно ${race.price} кристаллов`, variant: "destructive" });
+      return;
+    }
 
-    const raceConfig = {
+    const raceConfig: Record<string, { avatar: string; attack: number; defense: number; health: number }> = {
       warrior: { avatar: '⚔️', attack: 20, defense: 10, health: 150 },
       mage: { avatar: '🧙', attack: 10, defense: 5, health: 100 },
       archer: { avatar: '🏹', attack: 15, defense: 7, health: 120 },
-      ghost: { avatar: '👻', attack: 15, defense: 8, health: 110 }
-    }[raceId] || { avatar: '⚔️', attack: 20, defense: 10, health: 150 };
+      ghost: { avatar: '👻', attack: 15, defense: 8, health: 110 },
+      demon: { avatar: '😈', attack: 25, defense: 15, health: 180 },
+      angel: { avatar: '😇', attack: 20, defense: 20, health: 200 },
+      dragon: { avatar: '🐉', attack: 30, defense: 25, health: 250 },
+      vampire: { avatar: '🧛', attack: 22, defense: 18, health: 160 }
+    };
+    
+    const config = raceConfig[raceId] || { avatar: '⚔️', attack: 20, defense: 10, health: 150 };
 
     const newPlayer: Player = {
       username,
@@ -231,11 +295,11 @@ export default function Index() {
       gems: 10,
       level: 1,
       experience: 0,
-      health: raceConfig.health,
-      maxHealth: raceConfig.health,
-      attack: raceConfig.attack,
-      defense: raceConfig.defense,
-      avatar: raceConfig.avatar,
+      health: config.health,
+      maxHealth: config.health,
+      attack: config.attack,
+      defense: config.defense,
+      avatar: config.avatar,
       pvpWins: 0,
       pvpLosses: 0,
       weeklyScore: 0,
@@ -258,16 +322,24 @@ export default function Index() {
     const mobLevel = Math.max(1, player.level + Math.floor(Math.random() * 3) - 1);
     const isBoss = mobLevel % 10 === 0;
     
+    const mobImages = [
+      'https://cdn.poehali.dev/projects/574d4cea-11bf-4f4d-8b39-5e82004c350a/files/ca860011-e823-4c15-9e5a-4977af634296.jpg',
+      'https://cdn.poehali.dev/projects/574d4cea-11bf-4f4d-8b39-5e82004c350a/files/c3584dc4-955b-4004-b7c7-5a3ecf276e0c.jpg',
+      'https://cdn.poehali.dev/projects/574d4cea-11bf-4f4d-8b39-5e82004c350a/files/1f3782d9-1034-4783-80bb-e0dd8d6460b5.jpg',
+      'https://cdn.poehali.dev/projects/574d4cea-11bf-4f4d-8b39-5e82004c350a/files/66d3aecb-2128-41f1-a12f-fe8ca61bfd83.jpg'
+    ];
+    const bossImage = 'https://cdn.poehali.dev/projects/574d4cea-11bf-4f4d-8b39-5e82004c350a/files/c7fb6a02-0c35-4d75-9cc3-41365b0cff3e.jpg';
+    
     const mobData = {
       id: Date.now(),
       name: isBoss ? `БОСС Ур.${mobLevel}` : `Моб Ур.${mobLevel}`,
-      icon: isBoss ? '👹' : ['🧟', '🦇', '🐺', '🕷️'][Math.floor(Math.random() * 4)],
+      icon: isBoss ? bossImage : mobImages[Math.floor(Math.random() * mobImages.length)],
       level: mobLevel,
       isBoss,
-      health: isBoss ? mobLevel * 200 : mobLevel * 50,
-      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 50,
-      attack: mobLevel * 8,
-      defense: mobLevel * 4,
+      health: isBoss ? mobLevel * 200 : mobLevel * 30,
+      maxHealth: isBoss ? mobLevel * 200 : mobLevel * 30,
+      attack: mobLevel * 6,
+      defense: mobLevel * 3,
       coinsReward: Math.max(2, mobLevel * 1.5)
     };
 
@@ -698,6 +770,29 @@ export default function Index() {
     toast({ title: "Куплено!", description: marketItem.name });
   };
 
+  const removeFromMarket = (index: number) => {
+    if (!player) return;
+    
+    const item = marketItems[index];
+    if (item.sellerId !== player.username) {
+      toast({ title: "Это не твой товар!", variant: "destructive" });
+      return;
+    }
+
+    const invItem: InventoryItem = { ...item, quantity: 1, equipped: false };
+    const existing = inventory.find(i => i.id === item.id && i.name === item.name);
+    if (existing) {
+      setInventory(inventory.map(i => 
+        (i.id === item.id && i.name === item.name) ? { ...i, quantity: i.quantity + 1 } : i
+      ));
+    } else {
+      setInventory([...inventory, invItem]);
+    }
+
+    setMarketItems(marketItems.filter((_, i) => i !== index));
+    toast({ title: "Снято с продажи!", description: item.name });
+  };
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'common': return 'border-gray-500';
@@ -714,6 +809,10 @@ export default function Index() {
       case 'mage': return 'text-blue-500';
       case 'archer': return 'text-green-500';
       case 'ghost': return 'text-purple-500';
+      case 'demon': return 'text-red-600';
+      case 'angel': return 'text-yellow-400';
+      case 'dragon': return 'text-orange-500';
+      case 'vampire': return 'text-red-700';
       default: return 'text-foreground';
     }
   };
@@ -728,38 +827,49 @@ export default function Index() {
       .slice(0, 10);
   };
 
+  const handleLogout = () => {
+    setPlayer(null);
+    setInventory([]);
+    setShowAuth(true);
+    setUsername('');
+    setPassword('');
+    toast({ title: "Выход", description: "До скорой встречи!" });
+  };
+
   if (showAuth) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <Dialog open={showAuth}>
-          <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-sm">
+          <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-sm sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-center text-2xl md:text-3xl text-purple-400">
+              <DialogTitle className="text-center text-xl sm:text-2xl md:text-3xl text-purple-400">
                 {isLogin ? '🎮 ВХОД' : '✨ РЕГИСТРАЦИЯ'}
               </DialogTitle>
-              <DialogDescription className="text-center text-purple-300">
+              <DialogDescription className="text-center text-sm sm:text-base text-purple-300">
                 LYRIUM MMORPG
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <Input
                 placeholder="Никнейм"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-12 text-base touch-manipulation"
+                onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-11 sm:h-12 text-sm sm:text-base touch-manipulation"
               />
               <Input
                 type="password"
                 placeholder="Пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-12 text-base touch-manipulation"
+                onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                className="font-pixel bg-slate-900 border-purple-500 text-purple-100 h-11 sm:h-12 text-sm sm:text-base touch-manipulation"
               />
 
               <Button 
                 onClick={handleAuth} 
-                className="w-full bg-purple-600 hover:bg-purple-700 font-pixel h-12 text-base touch-manipulation"
+                className="w-full bg-purple-600 hover:bg-purple-700 font-pixel h-11 sm:h-12 text-sm sm:text-base touch-manipulation"
               >
                 {isLogin ? 'ВОЙТИ' : 'ЗАРЕГИСТРИРОВАТЬСЯ'}
               </Button>
@@ -767,7 +877,7 @@ export default function Index() {
               <Button 
                 variant="ghost" 
                 onClick={() => setIsLogin(!isLogin)}
-                className="w-full text-purple-300 hover:text-purple-100 font-pixel h-12 touch-manipulation"
+                className="w-full text-purple-300 hover:text-purple-100 font-pixel h-10 sm:h-12 text-xs sm:text-sm touch-manipulation"
               >
                 {isLogin ? 'Нет аккаунта? Зарегистрируйся' : 'Есть аккаунт? Войди'}
               </Button>
@@ -776,22 +886,25 @@ export default function Index() {
         </Dialog>
 
         <Dialog open={showRaceSelect} onOpenChange={setShowRaceSelect}>
-          <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-2xl">
+          <DialogContent className="bg-slate-800 border-2 border-purple-500 font-pixel max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-2xl text-purple-400">Выбери расу</DialogTitle>
+              <DialogTitle className="text-center text-lg sm:text-xl md:text-2xl text-purple-400">Выбери расу</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-3">
-              {RACES.filter(r => r.price === 0).map(race => (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {RACES.map(race => (
                 <Card 
                   key={race.id}
-                  className="bg-slate-900 border-2 border-purple-500 p-4 cursor-pointer hover:border-purple-300 transition-all touch-manipulation"
+                  className={`bg-slate-900 border-2 ${race.price === 0 ? 'border-purple-500' : 'border-yellow-600'} p-2 sm:p-4 cursor-pointer hover:border-purple-300 transition-all touch-manipulation`}
                   onClick={() => selectRace(race.id)}
                 >
                   <div className="text-center">
-                    <div className="text-5xl mb-2">{race.icon}</div>
-                    <h3 className="text-xl text-purple-300 mb-2">{race.name}</h3>
-                    <p className="text-xs text-purple-400 mb-2">{race.desc}</p>
-                    <p className="text-xs text-purple-500">{race.bonuses}</p>
+                    <div className="text-3xl sm:text-4xl md:text-5xl mb-1 sm:mb-2">{race.icon}</div>
+                    <h3 className="text-sm sm:text-base md:text-xl text-purple-300 mb-1 sm:mb-2">{race.name}</h3>
+                    <p className="text-[9px] sm:text-[10px] md:text-xs text-purple-400 mb-1 sm:mb-2">{race.desc}</p>
+                    <p className="text-[8px] sm:text-[9px] md:text-xs text-purple-500 mb-1">{race.bonuses}</p>
+                    {race.price > 0 && (
+                      <Badge className="bg-yellow-700 text-[8px] sm:text-[9px]">💎 {race.price}</Badge>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -814,7 +927,18 @@ export default function Index() {
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-purple-900 to-slate-900 text-purple-100 font-pixel p-2 md:p-4">
       <div className="max-w-7xl mx-auto">
         <header className="text-center mb-3 md:mb-6">
-          <h1 className="text-3xl md:text-5xl mb-2 md:mb-4 text-purple-400">⚔️ LYRIUM ⚔️</h1>
+          <div className="flex items-center justify-between mb-2 md:mb-4">
+            <div className="w-8"></div>
+            <h1 className="text-3xl md:text-5xl text-purple-400">⚔️ LYRIUM ⚔️</h1>
+            <Button 
+              onClick={handleLogout}
+              variant="ghost"
+              className="text-purple-400 hover:text-purple-100 h-8 w-8 p-0 touch-manipulation"
+              title="Выйти"
+            >
+              <Icon name="LogOut" size={20} />
+            </Button>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-1 md:gap-2 text-xs md:text-sm mb-2">
             <Badge className={`${getRaceColor(player.race)} bg-opacity-20 text-base md:text-lg`}>
               {player.avatar} {player.username}
@@ -864,7 +988,11 @@ export default function Index() {
               ) : currentMob && (
                 <div>
                   <div className="text-center mb-3 md:mb-4">
-                    <div className="text-4xl md:text-6xl mb-2">{currentMob.icon}</div>
+                    {currentMob.icon.startsWith('http') ? (
+                      <img src={currentMob.icon} alt={currentMob.name} className="w-20 h-20 md:w-32 md:h-32 mx-auto mb-2 pixelated" style={{imageRendering: 'pixelated'}} />
+                    ) : (
+                      <div className="text-4xl md:text-6xl mb-2">{currentMob.icon}</div>
+                    )}
                     <h3 className="text-base md:text-xl text-purple-300 mb-2">{currentMob.name}</h3>
                     {currentMob.isBoss && <Badge className="bg-red-600 mb-2 text-xs">👑 БОСС</Badge>}
                     <Progress value={(currentMob.health / currentMob.maxHealth) * 100} className="h-3 md:h-4 mb-2" />
@@ -1040,12 +1168,21 @@ export default function Index() {
                           💰 {item.price} монет
                         </div>
 
-                        <Button 
-                          onClick={() => buyFromMarket(item, index)}
-                          className="w-full bg-green-600 hover:bg-green-700 text-[9px] md:text-[10px] py-4 touch-manipulation"
-                        >
-                          КУПИТЬ
-                        </Button>
+                        {item.sellerId === player?.username ? (
+                          <Button 
+                            onClick={() => removeFromMarket(index)}
+                            className="w-full bg-red-600 hover:bg-red-700 text-[9px] md:text-[10px] py-4 touch-manipulation"
+                          >
+                            СНЯТЬ
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={() => buyFromMarket(item, index)}
+                            className="w-full bg-green-600 hover:bg-green-700 text-[9px] md:text-[10px] py-4 touch-manipulation"
+                          >
+                            КУПИТЬ
+                          </Button>
+                        )}
                       </div>
                     </Card>
                   ))}
